@@ -1,0 +1,22 @@
+# Frontend
+node_modules/
+.pnpm-store/
+dist/
+*.tsbuildinfo
+
+# Tauri / Rust
+src-tauri/target/
+src-tauri/gen/
+
+# Local application data
+config/
+backups/
+logs/
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/

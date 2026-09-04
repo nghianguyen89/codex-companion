@@ -1,0 +1,26 @@
+[package]
+name = "codex-companion"
+version = "0.1.0"
+description = "A safe, local companion utility for Codex"
+authors = ["Codex Companion contributors"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "codex_companion_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5.1", features = [] }
+
+[dependencies]
+dirs = "6.0.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tauri = { version = "2.9.0", features = [] }
+thiserror = "2.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+time = { version = "0.3", features = ["formatting"] }
+zip = { version = "2.2", default-features = false, features = ["deflate"] }
+tauri-plugin-dialog = "2.0.0-rc.8"
