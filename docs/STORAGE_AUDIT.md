@@ -37,3 +37,31 @@ Windows v2 creation checks that known Codex processes are stopped, holds deny-wr
 The filesystem boundary checks every existing ancestor and rejects Windows reparse points, traversal, device paths, ADS, duplicate case-folded v2 ZIP names and links. The standard-library check/create/delete sequence is not a defense against a hostile local process replacing directory ancestors in the tiny interval after checks; use a trusted local directory with Codex stopped.
 
 Current limits: 1 GiB per environment file, 4 MiB environment manifest, 32 in-memory plan tokens. Preview is synchronous at the Tauri boundary and large skill/resource trees may take time. Archive authentication/encryption, automatic SQLite merge, atomic multi-file plugin installation and target Desktop reindex/reopen verification are not implemented.
+
+## Personal bundle / Beyond Compare boundary
+
+The Phase 1 workflow accepts only a user-created regular `.bcpkg` on Windows.
+Companion records only its byte count and SHA-256, and does not inspect package
+contents or source paths. The native package may still contain sensitive data;
+the required acknowledgement that password/token export was disabled is not a
+verification. The bundle and recovered package therefore require trusted
+encrypted transport and remain outside cloud upload/sync.
+
+Recovery writes the opaque package once to a new Companion-owned staging path;
+the path is shown only to complete Beyond Compare's manual import. It never
+writes Beyond Compare configuration, moves licenses, or invokes native import.
+
+## SourceTree boundary
+
+Phase 2 reads only the regular Windows `bookmarks.xml` location and only after
+SourceTree is closed. The supported XML fixture includes bookmark name and path
+only; repository paths are recorded as machine-specific inventory, but no
+repository contents are read. Tabs, custom actions, whole `user.config`, hosted
+accounts, credential files, license keys, secrets, and every other SourceTree
+file are excluded without being read or copied. URL userinfo is rejected rather
+than redacted.
+
+The resulting personal bundle remains sensitive despite these exclusions. Use
+trusted encrypted transport; cloud sync is not available. Recovery extracts only
+to Companion-owned staging, rechecks the intended SourceTree location for a
+manual conflict preview, and never applies configuration to SourceTree.

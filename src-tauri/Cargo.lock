@@ -335,6 +335,7 @@ name = "codex-companion"
 version = "0.2.0"
 dependencies = [
  "dirs",
+ "quick-xml",
  "serde",
  "serde_json",
  "sha2",

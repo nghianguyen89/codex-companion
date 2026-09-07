@@ -38,3 +38,34 @@ Final portable executable SHA-256:
 ## Not validated
 
 No target-machine copy or Codex Desktop reindex/reopen test was possible. The application therefore does not claim full desktop-chat migration. See [STORAGE_AUDIT.md](STORAGE_AUDIT.md) and [USER_GUIDE.md](USER_GUIDE.md).
+
+## Phase 0–1 personal bundle delta — 2026-09-07
+
+After the Beyond Compare source changes, `pnpm lint`, `pnpm check`, `pnpm test`
+(14 tests), and `pnpm build` passed.
+`cargo check --manifest-path src-tauri/Cargo.toml` passed and
+`cargo test --manifest-path src-tauri/Cargo.toml --lib` passed 46 tests,
+including the existing session-v1, delete-v1, and environment-v2 readers plus
+new personal-bundle acknowledgement, malicious-inventory, source-revalidation,
+create-new, and rollback checks. `git diff --check` passed.
+
+`pnpm tauri build --bundles nsis` passed and produced the Windows x64 NSIS
+installer. The default `pnpm tauri build` also built the release executable but
+the MSI step failed because local Windows Installer access prevented WiX ICE
+validation; no MSI artifact is claimed for this delta.
+
+## Phase 2 SourceTree delta — 2026-09-07
+
+Completed checks: `pnpm lint`, `pnpm check`, `pnpm test` (15 tests), `pnpm build`,
+`cargo check --manifest-path src-tauri/Cargo.toml`, and
+`cargo test --manifest-path src-tauri/Cargo.toml --lib` (52 tests) all passed.
+The Rust suite includes the session-v1, delete-v1, environment-v2 and Beyond
+Compare regressions plus SourceTree valid/malformed/unknown XML, URL userinfo,
+traversal/ADS/reserved paths, duplicate inventory, hash/size rejection,
+process-running recognition, source-change, create-new conflict and rollback
+coverage. The frontend fixture verifies the SourceTree exclusions, sensitive
+transport warning and manual-only copy. `git diff --check` passed. The fresh
+Windows x64 NSIS bundle passed at
+`src-tauri/target/release/bundle/nsis/Codex Companion_0.2.0_x64-setup.exe`
+(SHA-256 `1C2A1D96340AEDFA2262197544B0F197EC33D8B77F91487C755483FD16ACD445`).
+MSI was not run for this delta.

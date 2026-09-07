@@ -103,3 +103,12 @@ export interface RestoreHistoryEntry {
   outcome: RestoreOutcome;
   errorCode: string | null;
 }
+
+export interface BeyondCompareReadiness { supported: boolean; secretExportAcknowledgementRequired: boolean; }
+export interface BeyondCompareBundlePreview { token: string; packageName: string; bytes: number; sensitive: boolean; }
+export interface BeyondCompareBundleInspection { token: string; bundleName: string; createdAt: string; bytes: number; sensitive: boolean; }
+export interface BeyondCompareRecoveryPreview { token: string; packageName: string; bytes: number; stagingPath: string; }
+export interface SourceTreeReadiness { supported: boolean; bookmarksFound: boolean; }
+export interface SourceTreePreview { token: string; sourceAppVersion: string; bookmarkCount: number; repositoryPaths: string[]; bytes: number; sensitive: boolean; }
+export interface SourceTreeInspection { token: string; bundleName: string; createdAt: string; sourceAppVersion: string; bookmarkCount: number; bytes: number; sensitive: boolean; }
+export interface SourceTreeRecoveryPreview { token: string; stagingPath: string; destinationPath: string; destinationConflict: boolean; manualOnly: boolean; }

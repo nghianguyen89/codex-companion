@@ -1,4 +1,5 @@
 mod backup;
+mod beyond_compare;
 mod fs_safety;
 mod environment;
 mod cleanup;
@@ -8,8 +9,10 @@ mod config;
 mod logging;
 mod local_delete;
 mod platform;
+mod personal_bundle;
 mod restore_history;
 mod session_storage;
+mod sourcetree;
 
 use commands::{
     create_backup, discover_conversations, get_codex_paths, get_configuration, get_diagnostics,
@@ -38,6 +41,12 @@ pub fn run() {
             ,commands::preview_environment, commands::create_environment,
             commands::inspect_environment, commands::preview_environment_restore,
             commands::restore_environment, commands::scan_cleanup, commands::execute_cleanup
+            ,commands::get_beyond_compare_readiness, commands::preview_beyond_compare,
+            commands::create_beyond_compare_bundle, commands::inspect_beyond_compare_bundle,
+            commands::preview_beyond_compare_recovery, commands::recover_beyond_compare
+            ,commands::get_sourcetree_readiness, commands::preview_sourcetree,
+            commands::create_sourcetree_bundle, commands::inspect_sourcetree_bundle,
+            commands::preview_sourcetree_recovery, commands::recover_sourcetree
         ])
         .run(tauri::generate_context!())
         .expect("error while running Codex Companion");

@@ -52,3 +52,72 @@ History never includes session content, full archive source paths, inspection/re
 # Delete safety archive v1
 
 `codex-delete-safety-*.zip` is a local recovery artifact, separate from ordinary backup archives. It contains exactly `delete-manifest.json` and the selected `sessions/.../*.jsonl` entries. The manifest has `formatVersion: 1`, timestamp, fixed kind, and `{id, archivePath, bytes}` records. The archive is create-new and validated before deletion. To recover, select this ZIP in the session Backup & Restore inspection dialog, preview selected sessions and restore without overwrite. Archives are retained until manually removed.
+
+## Personal bundle v1 — Beyond Compare
+
+`personal-bundle-v1` is a separate ZIP format. It does not alter or embed the
+existing `manifest.json`, `delete-manifest.json`, or `environment-manifest.json`
+contracts. The only supported v1 inventory is exactly:
+
+```text
+personal-manifest.json
+apps/beyond-compare/settings.bcpkg
+```
+
+The strict, unknown-field-rejecting manifest has `formatVersion: 1`,
+`kind: "codex-companion-personal-bundle"`, RFC 3339 `createdAt`,
+`platform: "windows"`, `sensitive: true`, and one artifact. That artifact is
+fixed to `appId: "beyond-compare"`, adapter version `1`, kind
+`"settings-package"`, the namespaced path above, `files: 1`, its byte count,
+lowercase SHA-256, `restoreMode: "manual"`, and a true
+`secretExportDisabledAcknowledged`. The `sourceAppVersion` field is required
+and must be explicitly `null`: the `.bcpkg` payload is opaque, so Companion
+must not guess or parse a version.
+
+Inspection validates the full ZIP inventory, strict timestamp and fixed
+manifest values, case-insensitive duplicate names, regular-entry status, SHA-256
+and declared byte/file counts. It rejects nested or extra entries, traversal,
+absolute/drive/ADS/backslash names, Windows reserved names, trailing dots or
+spaces, links, and unsupported/future variants. Limits are two ZIP entries,
+1 MiB manifest, 512 MiB artifact, and 512 MiB aggregate artifact bytes.
+
+Creation requires a user acknowledgement that Beyond Compare's password and
+authentication-token export option was disabled. This cannot be proved from the
+opaque package; the artifact and bundle remain sensitive. Use only trusted
+encrypted transport. There is no cloud upload, credential/license migration or
+automatic native import.
+
+Recovery revalidates the inspection token, full bundle hash and ZIP content on
+the same opened archive handle, then copies at most the declared artifact bytes
+plus one before a fresh create-new Companion staging write. It rolls back only
+a package it created if recovery fails and never overwrites a staged file. The
+displayed staging path is a Companion destination, never the original source
+path. The user completes `Tools > Import Settings` in Beyond Compare manually.
+
+## Personal bundle v1 — SourceTree bookmarks
+
+SourceTree uses a separate, concrete strict inventory. It does not change the
+Beyond Compare bundle reader or any Codex archive format:
+
+```text
+personal-manifest.json
+apps/sourcetree/bookmarks.xml
+```
+
+The strict manifest has the same fixed container fields (`formatVersion: 1`,
+`kind: "codex-companion-personal-bundle"`, Windows platform, RFC 3339 creation
+time and `sensitive: true`) and one SourceTree artifact. That artifact is fixed
+to `appId: "sourcetree"`, adapter version `1`, kind `"bookmarks"`, the exact
+namespaced path above, `files: 1`, SHA-256, byte count, `restoreMode: "manual"`,
+the detected SourceTree version, and the parsed repository-path inventory.
+Unknown fields, a different app/version/path, duplicate/case-colliding entries,
+links, traversal, ADS, reserved names, hash/size mismatch, or an inventory that
+does not exactly match the parsed XML are rejected.
+
+Only the fixture-proven `ArrayOfBookmark > Bookmark > Name + Path` XML shape is
+accepted. Attributes, unknown/future fields, malformed XML, unsafe paths, and
+URLs containing userinfo are rejected. The original XML is never placed in the
+SourceTree configuration location automatically: recovery is a create-new
+Companion staging write with rollback on failure. SourceTree placement is
+manual, even when the destination is absent; an existing destination is a
+manual-review conflict.

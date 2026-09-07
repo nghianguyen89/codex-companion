@@ -7,6 +7,41 @@ use crate::{
 use tauri_plugin_dialog::DialogExt;
 
 #[tauri::command]
+pub fn get_beyond_compare_readiness() -> crate::beyond_compare::Readiness { crate::beyond_compare::readiness() }
+#[tauri::command]
+pub fn preview_beyond_compare(app: tauri::AppHandle, secret_export_disabled: bool) -> Result<Option<crate::personal_bundle::BundlePreview>, String> {
+    let Some(file) = app.dialog().file().set_title("Choose a Beyond Compare settings package").add_filter("Beyond Compare package", &["bcpkg"]).blocking_pick_file() else { return Ok(None); };
+    crate::personal_bundle::preview_create(file.into_path().map_err(|_| "The selected package does not have a readable local path.")?, secret_export_disabled).map(Some)
+}
+#[tauri::command]
+pub fn create_beyond_compare_bundle(token: String) -> Result<crate::personal_bundle::BundleCreated, String> { crate::personal_bundle::create(&token) }
+#[tauri::command]
+pub fn inspect_beyond_compare_bundle(app: tauri::AppHandle) -> Result<Option<crate::personal_bundle::BundleInspection>, String> {
+    let Some(file) = app.dialog().file().set_title("Choose a personal bundle").add_filter("Personal bundle", &["zip"]).blocking_pick_file() else { return Ok(None); };
+    crate::personal_bundle::inspect(file.into_path().map_err(|_| "The selected bundle does not have a readable local path.")?).map(Some)
+}
+#[tauri::command]
+pub fn preview_beyond_compare_recovery(token: String) -> Result<crate::personal_bundle::RecoveryPreview, String> { crate::personal_bundle::preview_recovery(&token) }
+#[tauri::command]
+pub fn recover_beyond_compare(token: String, confirmation: String) -> Result<crate::personal_bundle::RecoveryResult, String> { crate::personal_bundle::recover(&token, &confirmation) }
+
+#[tauri::command]
+pub fn get_sourcetree_readiness() -> crate::sourcetree::Readiness { crate::sourcetree::readiness() }
+#[tauri::command]
+pub fn preview_sourcetree() -> Result<crate::sourcetree::Preview, String> { crate::sourcetree::preview() }
+#[tauri::command]
+pub fn create_sourcetree_bundle(token: String) -> Result<crate::sourcetree::Created, String> { crate::sourcetree::create(&token) }
+#[tauri::command]
+pub fn inspect_sourcetree_bundle(app: tauri::AppHandle) -> Result<Option<crate::sourcetree::Inspection>, String> {
+    let Some(file) = app.dialog().file().set_title("Choose a SourceTree personal bundle").add_filter("Personal bundle", &["zip"]).blocking_pick_file() else { return Ok(None); };
+    crate::sourcetree::inspect(file.into_path().map_err(|_| "The selected bundle does not have a readable local path.")?).map(Some)
+}
+#[tauri::command]
+pub fn preview_sourcetree_recovery(token: String) -> Result<crate::sourcetree::RecoveryPreview, String> { crate::sourcetree::preview_recovery(&token) }
+#[tauri::command]
+pub fn recover_sourcetree(token: String, confirmation: String) -> Result<crate::sourcetree::RecoveryResult, String> { crate::sourcetree::recover(&token, &confirmation) }
+
+#[tauri::command]
 pub fn preview_environment(groups: Vec<String>) -> Result<crate::environment::Preview, String> { crate::environment::preview(groups) }
 #[tauri::command]
 pub fn create_environment(token: String) -> Result<crate::environment::Created, String> { crate::environment::create(&token) }

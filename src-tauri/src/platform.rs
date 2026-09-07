@@ -47,6 +47,10 @@ pub fn backup_dir(configuration: &AppConfiguration) -> PathBuf {
     app_data_dir().join("backups")
 }
 
+/// Personal bundles and recovered app packages remain Companion-owned, not in app roots.
+pub fn personal_bundle_dir() -> PathBuf { app_data_dir().join("personal-bundles") }
+pub fn personal_staging_dir() -> PathBuf { app_data_dir().join("staging") }
+
 pub fn restore_history_file(configuration: &AppConfiguration) -> PathBuf {
     config_dir(configuration).join("restore-history-v1.json")
 }

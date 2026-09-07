@@ -46,3 +46,32 @@ Restore history is Companion-owned storage, not Codex storage. Its format versio
 # Milestone 6: deletion path
 
 `ConversationsPage` sends only selected IDs and the literal confirmation. The Tauri command re-discovers and canonicalizes `CODEX_HOME/sessions`, accepts only regular non-symlink legacy files, snapshots exactly those files into a versioned quarantine ZIP plus `delete-manifest.json`, then verifies ZIP entries and metadata before calling `remove_file`. A mid-flight failure triggers strict create-new restoration from the verified ZIP; it never overwrites a concurrent file.
+
+## Phase 0–1 personal bundle boundary
+
+`personal_bundle.rs` is a small, concrete strict ZIP boundary; it has no
+provider trait or catalog. `beyond_compare.rs` accepts only a regular Windows
+`.bcpkg` selected by the user and treats its bytes as opaque. Narrow commands
+create/inspect/recover this one workflow, while `BeyondComparePage` provides
+the single explicit UI card. `platform.rs` owns the separate Companion bundle
+and staging locations; no app directory is written.
+
+The existing Codex backup, deletion, environment commands, DTOs and manifest
+readers are unchanged. Personal bundles have no operation-history integration.
+
+## Phase 2 SourceTree boundary
+
+`sourcetree.rs` is a second concrete personal-bundle-v1 reader/writer, separate
+from the opaque Beyond Compare package module. It supports Windows only and
+only `%LOCALAPPDATA%\\Atlassian\\SourceTree\\bookmarks.xml` with the one
+fixture-proven `ArrayOfBookmark > Bookmark > Name + Path` schema. It validates
+the source before preview and again before creation, records the detected
+installed SourceTree version, hashes the one namespaced XML artifact, and
+rejects unknown XML, credentials in URL userinfo, unsafe values, reparse points,
+and unsafe ZIP inventories.
+
+SourceTree must be closed for preview, creation, and recovery; Companion only
+checks `tasklist.exe` and never terminates it. Recovery always writes a fresh
+`bookmarks.xml` to Companion-owned staging after token, archive hash/inventory,
+and destination-state revalidation. The regular SourceTree location is shown as
+a conflict/manual-placement preview only; Companion never writes or imports it.

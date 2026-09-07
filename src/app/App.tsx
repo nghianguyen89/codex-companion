@@ -2,6 +2,8 @@ import { EnvironmentPage } from "../features/backup/EnvironmentPage";
 import { CleanupPage } from "../features/cleanup/CleanupPage";
 import { useCallback, useState } from "react";
 import { BackupPage } from "../features/backup/BackupPage";
+import { BeyondComparePage } from "../features/backup/BeyondComparePage";
+import { SourceTreePage } from "../features/backup/SourceTreePage";
 import { ConversationsPage } from "../features/conversations/ConversationsPage";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
 import { DiagnosticsPage } from "../features/diagnostics/DiagnosticsPage";
@@ -13,9 +15,11 @@ import { getConfiguration, getDiagnostics, saveConfiguration } from "../services
 import type { AppConfiguration } from "../types/codex";
 import { I18nProvider, translate, type TranslationKey } from "../i18n";
 
-type Page = "environment" | "cleanup" | "dashboard" | "conversations" | "backup" | "skills" | "pets" | "diagnostics" | "settings";
+type Page = "environment" | "beyondCompare" | "sourceTree" | "cleanup" | "dashboard" | "conversations" | "backup" | "skills" | "pets" | "diagnostics" | "settings";
 const navigation: Array<{ id: Page; label: TranslationKey; group: TranslationKey }> = [
   { id: "environment", label: "environment.title", group: "nav.manage" }, { id: "cleanup", label: "cleanup.title", group: "nav.tools" },
+  { id: "beyondCompare", label: "beyondCompare.title", group: "nav.manage" },
+  { id: "sourceTree", label: "sourceTree.title", group: "nav.manage" },
   { id: "dashboard", label: "nav.dashboard", group: "nav.overview" }, { id: "conversations", label: "nav.conversations", group: "nav.manage" },
   { id: "backup", label: "nav.backup", group: "nav.manage" }, { id: "skills", label: "nav.skills", group: "nav.codex" },
   { id: "pets", label: "nav.pets", group: "nav.codex" }, { id: "diagnostics", label: "nav.diagnostics", group: "nav.tools" }, { id: "settings", label: "nav.settings", group: "nav.preferences" }
@@ -42,6 +46,8 @@ export function App() {
       {page === "conversations" && <ConversationsPage />}
       {page === "backup" && <BackupPage />}
       {page === "environment" && <EnvironmentPage />}
+      {page === "beyondCompare" && <BeyondComparePage />}
+      {page === "sourceTree" && <SourceTreePage />}
       {page === "cleanup" && <CleanupPage />}
       {page === "skills" && <SkillsPage />}
       {page === "pets" && <PetsPage />}
