@@ -12,4 +12,8 @@ describe("i18n", () => {
   it("falls back to English when the language is unknown", () => expect(translate("xx" as "en", "backup.restore")).toBe("Restore selected sessions"));
   it("returns the key when neither dictionary defines it", () => expect(translate("vi", "missing.key" as "nav.settings")).toBe("missing.key"));
   it("interpolates typed UI values", () => expect(translate("vi", "backup.selected", { count: 2 })).toBe("Đã chọn 2"));
+  it("translates restore-history outcomes in both supported languages", () => {
+    expect(translate("en", "backup.historyRolledBack")).toBe("Rolled back");
+    expect(translate("vi", "backup.historyFailed")).toBe("Thất bại");
+  });
 });

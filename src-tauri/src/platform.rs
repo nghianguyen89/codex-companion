@@ -46,3 +46,18 @@ pub fn backup_dir(configuration: &AppConfiguration) -> PathBuf {
     }
     app_data_dir().join("backups")
 }
+
+pub fn restore_history_file(configuration: &AppConfiguration) -> PathBuf {
+    config_dir(configuration).join("restore-history-v1.json")
+}
+
+/// Safety archives for local legacy-session deletion live in Companion data, never in
+/// CODEX_HOME. They are intentionally retained until the user removes them manually.
+pub fn delete_quarantine_dir(configuration: &AppConfiguration) -> PathBuf {
+    if configuration.portable_mode {
+        if let Some(root) = portable_root() {
+            return root.join("quarantine");
+        }
+    }
+    app_data_dir().join("quarantine")
+}

@@ -1,6 +1,16 @@
-# Backup and safety-backup format
+# Backup, safety-backup, and restore-history format
 
-Milestone 3 creates selected-session export archives only. Restore, deletion, migration, cleanup, and changes to Codex data are not implemented.
+## Current 0.2.0 contract
+
+The Windows scope now includes environment archive v2, create-only file recovery and explicit catalog-cache cleanup. See [USER_GUIDE.md](USER_GUIDE.md) and [STORAGE_AUDIT.md](STORAGE_AUDIT.md) for the current included/excluded paths and limits. Desktop chat/database merging is **unfinished and unverified**. The milestone descriptions below are historical contracts, not the current feature scope.
+
+Environment ZIP uses `environment-manifest.json` with version 2, kind, timestamp, platform, CLI version and entries (`path`, `group`, `bytes`, `sha256`, `manual`). Inspection checks the complete ZIP inventory and every SHA-256; automatic restore never writes manual database/index/settings components. Session `manifest.json` v1 remains supported; `delete-manifest.json` v1 now uses the existing inspection/restore UI. Missing destination sessions folders are supported, and failed rollback is reported.
+
+New modules: `environment.rs` (offline Windows snapshot/preview/token/create-only recovery), `cleanup.rs` (strict remote catalog allowlist), `fs_safety.rs` (ancestor/reparse/path checks). Portable settings load/save use the same marker-selected location. UI changes invalidate previews and disable selection during operations. See [VALIDATION.md](VALIDATION.md) for actual checks.
+
+## Historical milestones
+
+Backup archive v1 contains only explicitly selected session exports. Restore is limited to the validated workflow documented below; deletion, migration, cleanup, and all Codex-data changes outside that workflow are not implemented.
 
 ```text
 codex-backup-YYYY-MM-DD_HHMMSS[-N].zip
@@ -27,3 +37,18 @@ Restore reads and validates every selected entry fully before filesystem mutatio
 Inspection is read-only and does not extract the ZIP. Before interpreting `manifest.json`, Companion rejects ZIP entry names containing absolute paths, drive prefixes, backslashes, empty or dot components, parent traversal, duplicates, or directory entries. The archive must contain one `manifest.json` and exactly the session files listed by manifest `sessions`; additional entries are invalid.
 
 The manifest is strict JSON with no unknown fields. `formatVersion` must equal `1`; `createdAt` and optional session timestamps must be RFC 3339; `platform` and session IDs must not be empty; session `archivePath` values must be unique `sessions/.../*.jsonl` paths; and every listed byte count must equal the ZIP entry's uncompressed size. A missing `codexCliVersion` is reported as a warning, not an error. `manifest.json` is capped at 1 MiB during inspection.
+
+## Compatibility contract and migration strategy
+
+Backup archive format v1 is the only supported format. Existing v1 archives remain valid when their strict manifest and ZIP-entry checks pass. Any other `formatVersion`, including a hypothetical newer value, is shown as unsupported and cannot be restored; Companion does not silently downgrade, coerce, or migrate it. A future format requires a separately specified reader/migration, fixtures for every source version, and tests proving no-overwrite, traversal protection, symlink protection, and rollback still hold.
+
+The embedded session payload compatibility contract is similarly narrow: its first JSONL line must be `type: "session_meta"` and identify the selected session by either `payload.session_id` or the known `payload.id` alias. Unrecognized record types and malformed metadata do not become a fallback format and cannot be restored.
+
+## Restore history v1
+
+Companion stores local restore audit data at `config/restore-history-v1.json` (or the portable `config/` directory). The file has `formatVersion: 1` and retains at most 100 newest-first entries. Each entry has `occurredAt`, archive **name** only, `sessionIds`, `restoredCount`, `skippedConflicts`, optional `safetyBackupPath`, `outcome` (`completed`, `partial`, `rolledBack`, `failed`), and optional stable `errorCode`.
+
+History never includes session content, full archive source paths, inspection/restore tokens, credentials, or native error messages. A missing file means empty history. A malformed, symlinked, non-regular, or future-version file is unavailable rather than interpreted. The UI is read-only and does not provide deletion or editing.
+# Delete safety archive v1
+
+`codex-delete-safety-*.zip` is a local recovery artifact, separate from ordinary backup archives. It contains exactly `delete-manifest.json` and the selected `sessions/.../*.jsonl` entries. The manifest has `formatVersion: 1`, timestamp, fixed kind, and `{id, archivePath, bytes}` records. The archive is create-new and validated before deletion. To recover, select this ZIP in the session Backup & Restore inspection dialog, preview selected sessions and restore without overwrite. Archives are retained until manually removed.

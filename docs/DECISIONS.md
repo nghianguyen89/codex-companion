@@ -74,3 +74,23 @@ Restore uses an opaque inspection token and revalidates on every preview/executi
 ## 2026-09-04 — Dependency-free typed English/Vietnamese UI
 
 Language preference is stored as `language` in `AppConfiguration`, defaults to English, and selects typed dictionaries in `src/i18n`. The saved DTO replaces in-memory configuration immediately after save, so the provider rerenders without a reload. Native data and errors are not interpreted for translation.
+
+## 2026-09-04 — Bounded, privacy-minimized restore audit history
+
+Restore history is a Companion-owned versioned JSON document, retained locally as the newest 100 summaries. It records only time, archive filename, selected session IDs, restored/skipped counts, optional safety-backup path, outcome, and stable failure code. Session content, source archive paths, tokens, credentials, and native error strings are deliberately excluded. If history storage is invalid or from a future version, Companion does not interpret it; if recording fails, a completed restore still remains completed.
+
+## 2026-09-04 — Explicit legacy storage compatibility over format inference
+
+The supported Codex metadata contract is limited to the observed legacy first-line JSONL `session_meta` record with `payload.session_id` or `payload.id`. Fixtures lock both accepted variants and invalid/future variants. Unknown record types, malformed IDs, and future backup format versions are rejected explicitly and cannot reach restore; backup format v1 remains the sole supported archive format until an explicit migration is designed and tested.
+# Milestone 6 decisions
+
+- Deletion targets are IDs, never client-provided filesystem paths.
+- Quarantine uses ZIP format version 1 with a separate `delete-manifest.json`; a future format requires an explicit compatibility contract.
+- Quarantine retention is manual and indefinite: Companion does not silently purge recovery artifacts.
+- Audit history stores safe IDs, counts, outcome, stable error code, and quarantine path—not session content, source paths, secrets, or native errors.
+
+## 2026-09-07 — Windows environment archive and conservative recovery
+
+User scope expands beyond local sessions. v2 stores selected environment components with SHA-256, offline Windows deny-write/delete handles and source inventory checks. Keep installed plugin resources; exclude auth and potential credential-bearing settings intact. Preserve v1/delete archive readers. No automatic SQLite/JSON/TOML merge: archive manual components and expose the limitation. Target usability remains a separate verification milestone.
+
+Cleanup is limited to the observed, upstream-defined remote catalog cache. Unknown paths/schema, active Codex, changed files and reparse points cannot authorize deletion. No cleanup retention scheduler or quarantine purge is added.

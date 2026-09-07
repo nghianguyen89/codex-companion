@@ -1,3 +1,5 @@
+import { EnvironmentPage } from "../features/backup/EnvironmentPage";
+import { CleanupPage } from "../features/cleanup/CleanupPage";
 import { useCallback, useState } from "react";
 import { BackupPage } from "../features/backup/BackupPage";
 import { ConversationsPage } from "../features/conversations/ConversationsPage";
@@ -11,8 +13,9 @@ import { getConfiguration, getDiagnostics, saveConfiguration } from "../services
 import type { AppConfiguration } from "../types/codex";
 import { I18nProvider, translate, type TranslationKey } from "../i18n";
 
-type Page = "dashboard" | "conversations" | "backup" | "skills" | "pets" | "diagnostics" | "settings";
+type Page = "environment" | "cleanup" | "dashboard" | "conversations" | "backup" | "skills" | "pets" | "diagnostics" | "settings";
 const navigation: Array<{ id: Page; label: TranslationKey; group: TranslationKey }> = [
+  { id: "environment", label: "environment.title", group: "nav.manage" }, { id: "cleanup", label: "cleanup.title", group: "nav.tools" },
   { id: "dashboard", label: "nav.dashboard", group: "nav.overview" }, { id: "conversations", label: "nav.conversations", group: "nav.manage" },
   { id: "backup", label: "nav.backup", group: "nav.manage" }, { id: "skills", label: "nav.skills", group: "nav.codex" },
   { id: "pets", label: "nav.pets", group: "nav.codex" }, { id: "diagnostics", label: "nav.diagnostics", group: "nav.tools" }, { id: "settings", label: "nav.settings", group: "nav.preferences" }
@@ -38,6 +41,8 @@ export function App() {
       {page === "dashboard" && <DashboardPage diagnostics={diagnostics.value} />}
       {page === "conversations" && <ConversationsPage />}
       {page === "backup" && <BackupPage />}
+      {page === "environment" && <EnvironmentPage />}
+      {page === "cleanup" && <CleanupPage />}
       {page === "skills" && <SkillsPage />}
       {page === "pets" && <PetsPage />}
       {page === "diagnostics" && <DiagnosticsPage diagnostics={diagnostics.value} loading={diagnostics.loading} error={diagnostics.error} onRefresh={diagnostics.refresh} />}

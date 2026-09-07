@@ -14,6 +14,7 @@ use crate::{
     codex,
     config::AppConfiguration,
     platform,
+    restore_history::{self, RestoreOutcome},
     session_storage::{self, SelectedSession},
 };
 
@@ -83,8 +84,37 @@ pub struct BackupError { pub code: &'static str, pub message: String }
 impl std::fmt::Display for BackupError { fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(formatter, "{}: {}", self.code, self.message) } }
 impl BackupError {
     pub fn from_message(message: String) -> Self {
-        let code = if message.contains("archive") || message.contains("ZIP") || message.contains("manifest") { "invalid_archive" } else if message.contains("symbolic link") || message.contains("outside") || message.contains("unsafe") { "unsafe_path" } else if message.contains("rolled back") { "restore_rolled_back" } else if message.contains("safety backup") { "safety_backup_failed" } else { "backup_operation_failed" };
+        let code = error_code(&message);
         Self { code, message }
+    }
+}
+
+fn error_code(message: &str) -> &'static str {
+    if message.contains("rollback incomplete") { return "restore_rollback_failed"; }
+    if message.contains("Unsupported backup format") || message.contains("unsupported format") {
+        "unsupported_format"
+    } else if message.contains("deletion_confirmation_required") {
+        "deletion_confirmation_required"
+    } else if message.contains("deletion_validation_failed") {
+        "deletion_validation_failed"
+    } else if message.contains("deletion_archive_failed") {
+        "deletion_archive_failed"
+    } else if message.contains("deletion_rolled_back") {
+        "deletion_rolled_back"
+    } else if message.contains("deletion_rollback_failed") {
+        "deletion_rollback_failed"
+    } else if message.contains("symbolic link") || message.contains("outside") || message.contains("unsafe") {
+        "unsafe_path"
+    } else if message.contains("rolled back") {
+        "restore_rolled_back"
+    } else if message.contains("safety backup") {
+        "safety_backup_failed"
+    } else if message.contains("archive") || message.contains("ZIP") || message.contains("manifest") {
+        "invalid_archive"
+    } else if message.contains("metadata") || message.contains("selected archive entry") {
+        "restore_validation_failed"
+    } else {
+        "backup_operation_failed"
     }
 }
 
@@ -201,7 +231,11 @@ pub fn create(configuration: &AppConfiguration, ids: &[String]) -> Result<Backup
         .create_new(true)
         .open(&archive_path)
         .map_err(|error| format!("Unable to reserve a new backup archive: {error}"))?;
-    if let Err(error) = write_archive(file, &selected, &sessions) {
+    if let Err(error) = write_archive(file, &selected, &sessions).and_then(|_| {
+        let verified = inspect(&archive_path)?;
+        if !verified.validation.valid { return Err("Backup archive verification failed.".into()); }
+        Ok(())
+    }) {
         let _ = fs::remove_file(&archive_path);
         return Err(error);
     }
@@ -238,6 +272,7 @@ pub fn inspect(path: &Path) -> Result<ArchiveInspection, String> {
             errors.push(error);
             continue;
         }
+        if entry.unix_mode().is_some_and(|m| m & 0o170000 == 0o120000) { errors.push("ZIP symbolic link rejected.".into()); }
         if entry.is_dir() {
             errors.push(format!("ZIP entry must be a file, not a directory: {name}"));
             continue;
@@ -319,7 +354,11 @@ pub fn inspect(path: &Path) -> Result<ArchiveInspection, String> {
             ));
         }
         match entries.get(&session.archive_path) {
-            Some(size) if *size == session.bytes => {}
+            Some(size) if *size == session.bytes => {
+                if let Ok(mut entry) = archive.by_name(&session.archive_path) {
+                    if io::copy(&mut entry, &mut io::sink()).is_err() { errors.push("Archive payload integrity check failed.".into()); }
+                }
+            }
             Some(size) => errors.push(format!(
                 "Byte count differs for {} (manifest: {}, ZIP: {size}).",
                 session.archive_path, session.bytes
@@ -343,7 +382,7 @@ pub fn inspect(path: &Path) -> Result<ArchiveInspection, String> {
         .map(|session| session.archive_path.as_str())
         .collect();
     for name in entries.keys() {
-        if name != "manifest.json" && !expected.contains(name.as_str()) {
+        if name != "manifest.json" && name != "delete-manifest.json" && !expected.contains(name.as_str()) {
             errors.push(format!("ZIP contains an unlisted entry: {name}"));
         }
     }
@@ -399,9 +438,53 @@ pub fn preview_restore(configuration: &AppConfiguration, token: &str, ids: &[Str
 
 pub fn restore(configuration: &AppConfiguration, token: &str, ids: &[String]) -> Result<RestoreResult, String> {
     let path = archive_for_token(token)?;
-    let manifest = validated_manifest(&path)?;
-    let preview = restore_preview_for(configuration, &manifest, ids)?;
-    restore_from_path(configuration, &path, &manifest, &preview, None)
+    let archive_name = path.file_name().and_then(|name| name.to_str()).unwrap_or("Selected archive").to_owned();
+    let operation = (|| {
+        let manifest = validated_manifest(&path)?;
+        let preview = restore_preview_for(configuration, &manifest, ids)?;
+        restore_from_path(configuration, &path, &manifest, &preview, None)
+    })();
+    match &operation {
+        Ok(result) => {
+            let outcome = if result.skipped_conflicts > 0 { RestoreOutcome::Partial } else { RestoreOutcome::Completed };
+            record_restore_history(configuration, archive_name, ids, result, outcome, None);
+        }
+        Err(error) => {
+            let code = error_code(error);
+            let outcome = if code == "restore_rolled_back" { RestoreOutcome::RolledBack } else { RestoreOutcome::Failed };
+            record_restore_history(
+                configuration,
+                archive_name,
+                ids,
+                &RestoreResult { restored_count: 0, skipped_conflicts: 0, total_bytes: 0, safety_backup_path: None },
+                outcome,
+                Some(code.to_owned()),
+            );
+        }
+    }
+    operation
+}
+
+fn record_restore_history(
+    configuration: &AppConfiguration,
+    archive_name: String,
+    ids: &[String],
+    result: &RestoreResult,
+    outcome: RestoreOutcome,
+    error_code: Option<String>,
+) {
+    if let Err(error) = restore_history::record(
+        configuration,
+        archive_name,
+        ids.to_vec(),
+        result.restored_count,
+        result.skipped_conflicts,
+        result.safety_backup_path.clone(),
+        outcome,
+        error_code,
+    ) {
+        tracing::warn!("restore history could not be recorded: {error}");
+    }
 }
 
 fn validated_manifest(path: &Path) -> Result<ArchiveManifest, String> {
@@ -409,8 +492,8 @@ fn validated_manifest(path: &Path) -> Result<ArchiveManifest, String> {
     if !inspection.validation.valid { return Err("The archive is no longer valid and cannot be restored.".into()); }
     let file = File::open(path).map_err(|_| "The inspected archive is no longer readable.".to_string())?;
     let mut archive = ZipArchive::new(file).map_err(|_| "The inspected archive is no longer a readable ZIP.".to_string())?;
-    let mut manifest = archive.by_name("manifest.json").map_err(|_| "The inspected archive is missing its manifest.".to_string())?;
-    let mut bytes = Vec::new(); manifest.read_to_end(&mut bytes).map_err(|_| "The inspected manifest could not be read.".to_string())?;
+    let entries = (0..archive.len()).map(|i| { let e = archive.by_index(i).unwrap(); (e.name().to_owned(), e.size()) }).collect();
+    let bytes = read_manifest(&mut archive, &entries, &mut Vec::new()).ok_or("Invalid archive manifest.")?;
     serde_json::from_slice(&bytes).map_err(|_| "The inspected manifest is invalid.".to_string())
 }
 
@@ -439,9 +522,8 @@ fn restore_preview_for(configuration: &AppConfiguration, manifest: &ArchiveManif
 
 fn destination_root() -> Result<PathBuf, String> {
     let root = platform::codex_home().join("sessions");
-    let canonical = root.canonicalize().map_err(|_| "The Codex sessions destination is unavailable.".to_string())?;
-    if !canonical.is_dir() { return Err("The Codex sessions destination is not a directory.".into()); }
-    Ok(canonical)
+    crate::fs_safety::check(&root)?;
+    Ok(root)
 }
 
 fn destination_for(root: &Path, archive_path: &str) -> Result<PathBuf, String> {
@@ -453,6 +535,8 @@ fn destination_for(root: &Path, archive_path: &str) -> Result<PathBuf, String> {
 }
 
 fn assert_no_symlink_escape(root: &Path, target: &Path) -> Result<(), String> {
+    crate::fs_safety::check(target)?;
+    fs::create_dir_all(root).map_err(|e| e.to_string())?;
     let parent = target.parent().ok_or("Invalid restore destination.")?;
     let relative = parent.strip_prefix(root).map_err(|_| "Rejected a destination outside the sessions directory.".to_string())?;
     let mut current = root.to_path_buf();
@@ -474,12 +558,7 @@ fn assert_no_symlink_escape(root: &Path, target: &Path) -> Result<(), String> {
 }
 
 fn validate_session_payload(bytes: &[u8], id: &str) -> Result<(), String> {
-    let first = bytes.split(|byte| *byte == b'\n').next().ok_or("Archive session is empty.")?;
-    let value: serde_json::Value = serde_json::from_slice(first).map_err(|_| "Archive session is not valid JSONL metadata.")?;
-    let payload = value.get("payload").and_then(serde_json::Value::as_object).ok_or("Archive session has no metadata payload.")?;
-    let recorded_id = payload.get("session_id").or_else(|| payload.get("id")).and_then(serde_json::Value::as_str);
-    if value.get("type").and_then(serde_json::Value::as_str) != Some("session_meta") || recorded_id != Some(id) { return Err("Archive session metadata does not match its manifest entry.".into()); }
-    Ok(())
+    session_storage::validate_restorable_session_metadata(bytes, id).map_err(str::to_owned)
 }
 
 fn restore_from_path(configuration: &AppConfiguration, path: &Path, manifest: &ArchiveManifest, preview: &RestorePreview, fail_after: Option<usize>) -> Result<RestoreResult, String> {
@@ -505,15 +584,36 @@ fn restore_from_path_at_root(configuration: &AppConfiguration, path: &Path, mani
     }
     let safety_backup_path = if configuration.create_safety_backups && !conflicts.is_empty() { Some(create_conflict_safety_backup(configuration, root, &conflicts)?) } else { None };
     let mut created = Vec::new(); let mut skipped = 0; let mut total = 0;
-    for (index, (session, bytes)) in contents.iter().enumerate() {
-        let destination = destination_for(root, &session.archive_path)?; assert_no_symlink_escape(root, &destination)?;
-        if fs::symlink_metadata(&destination).is_ok() { skipped += 1; continue; }
-        if fail_after == Some(index) { rollback(&created); return Err("Restore failed during copy; created files were rolled back.".into()); }
-        match OpenOptions::new().write(true).create_new(true).open(&destination) { Ok(mut output) => { if output.write_all(bytes).and_then(|_| output.sync_all()).is_err() { let _ = fs::remove_file(&destination); rollback(&created); return Err("Restore failed during copy; created files were rolled back.".into()); } created.push(destination); total += bytes.len() as u64; }, Err(error) if error.kind() == io::ErrorKind::AlreadyExists => skipped += 1, Err(_) => { rollback(&created); return Err("Restore failed during copy; created files were rolled back.".into()); } }
+    let result = (|| -> Result<(), String> {
+        for (index, (session, bytes)) in contents.iter().enumerate() {
+            let destination = destination_for(root, &session.archive_path)?;
+            assert_no_symlink_escape(root, &destination)?;
+            if fs::symlink_metadata(&destination).is_ok() { skipped += 1; continue; }
+            if fail_after == Some(index) { return Err("Injected copy failure.".into()); }
+            match OpenOptions::new().write(true).create_new(true).open(&destination) {
+                Ok(mut output) => {
+                    created.push(destination.clone());
+                    output.write_all(bytes).and_then(|_| output.sync_all()).map_err(|e| e.to_string())?;
+                    drop(output);
+                    if fs::read(&destination).map_err(|e| e.to_string())? != *bytes { return Err("Restore verification failed.".into()); }
+                    total += bytes.len() as u64;
+                },
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => skipped += 1,
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+        Ok(())
+    })();
+    if let Err(error) = result {
+        let remaining = rollback(&created);
+        return Err(if remaining == 0 { format!("Restore failed; created files were rolled back: {error}") }
+            else { format!("Restore failed; rollback incomplete, {remaining} files remain: {error}") });
     }
     Ok(RestoreResult { restored_count: created.len(), skipped_conflicts: skipped, total_bytes: total, safety_backup_path })
 }
-fn rollback(created: &[PathBuf]) { for file in created.iter().rev() { let _ = fs::remove_file(file); } }
+fn rollback(created: &[PathBuf]) -> usize {
+    created.iter().rev().filter(|file| crate::fs_safety::check(file).is_err() || fs::remove_file(file).is_err()).count()
+}
 fn create_conflict_safety_backup(configuration: &AppConfiguration, root: &Path, conflicts: &[(&&ArchiveManifestSession, PathBuf, fs::Metadata)]) -> Result<String, String> {
     let directory = platform::backup_dir(configuration); fs::create_dir_all(&directory).map_err(|_| "Unable to create the safety backup directory.")?;
     let path = create_safety_backup_path(&directory)?; let file = OpenOptions::new().write(true).create_new(true).open(&path).map_err(|_| "Unable to reserve a safety backup archive.")?;
@@ -529,7 +629,8 @@ fn read_manifest(
     entries: &HashMap<String, u64>,
     errors: &mut Vec<String>,
 ) -> Option<Vec<u8>> {
-    let Some(size) = entries.get("manifest.json") else {
+    let name = if entries.contains_key("manifest.json") { "manifest.json" } else { "delete-manifest.json" };
+    let Some(size) = entries.get(name) else {
         errors.push("ZIP archive is missing manifest.json.".into());
         return None;
     };
@@ -537,7 +638,7 @@ fn read_manifest(
         errors.push("manifest.json exceeds the 1 MiB inspection limit.".into());
         return None;
     }
-    let mut manifest = match archive.by_name("manifest.json") {
+    let mut manifest = match archive.by_name(name) {
         Ok(file) => file,
         Err(error) => {
             errors.push(format!("Unable to read manifest.json: {error}"));
@@ -549,10 +650,18 @@ fn read_manifest(
         errors.push(format!("Unable to read manifest.json: {error}"));
         return None;
     }
+    if name == "delete-manifest.json" {
+        let mut value: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+        if value["kind"] != "codex-companion-local-delete-safety-archive" { errors.push("Invalid delete archive kind.".into()); return None; }
+        value.as_object_mut()?.remove("kind");
+        value["platform"] = "unknown".into();
+        return serde_json::to_vec(&value).ok();
+    }
     Some(bytes)
 }
 
 fn validate_zip_path(name: &str) -> Result<(), String> {
+    crate::fs_safety::relative(name).map_err(|_| format!("Rejected unsafe ZIP path: {name}"))?;
     if name.is_empty()
         || name.contains('\\')
         || name.contains('\0')
@@ -606,6 +715,7 @@ fn write_archive(
     selected: &[SelectedSession],
     sessions: &[BackupSession],
 ) -> Result<(), String> {
+    let mut inputs = selected.iter().map(|item| crate::environment::locked_read(&item.source_path)).collect::<Result<Vec<_>, _>>()?;
     let created_at = OffsetDateTime::now_utc()
         .format(&Rfc3339)
         .map_err(|error| error.to_string())?;
@@ -636,14 +746,14 @@ fn write_archive(
     archive
         .write_all(&serde_json::to_vec_pretty(&manifest).map_err(|error| error.to_string())?)
         .map_err(io_error)?;
-    for item in selected {
+    for (index, item) in selected.iter().enumerate() {
         archive
             .start_file(&item.archive_path, options)
             .map_err(zip_error)?;
-        let mut input = File::open(&item.source_path).map_err(io_error)?;
-        io::copy(&mut input, &mut archive).map_err(io_error)?;
+        let copied = io::copy(&mut inputs[index], &mut archive).map_err(io_error)?;
+        if copied != sessions[index].bytes { return Err("Source changed; close Codex and preview again.".into()); }
     }
-    archive.finish().map_err(zip_error)?;
+    archive.finish().map_err(zip_error)?.sync_all().map_err(io_error)?;
     Ok(())
 }
 
@@ -694,6 +804,28 @@ fn zip_error(error: zip::result::ZipError) -> String {
 mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn existing_delete_safety_archive_is_inspectable_and_restorable() {
+        let root = restore_fixture_root("delete-recovery"); let path = root.join("delete.zip"); let payload = valid_jsonl("one");
+        let mut zip = ZipWriter::new(File::create(&path).unwrap()); let options = SimpleFileOptions::default();
+        zip.start_file("delete-manifest.json", options).unwrap();
+        zip.write_all(serde_json::json!({"formatVersion":1,"kind":"codex-companion-local-delete-safety-archive","createdAt":"2026-09-07T00:00:00Z","sessions":[{"id":"one","archivePath":"sessions/one.jsonl","bytes":payload.len()}]}).to_string().as_bytes()).unwrap();
+        zip.start_file("sessions/one.jsonl", options).unwrap(); zip.write_all(&payload).unwrap(); zip.finish().unwrap();
+        assert!(inspect(&path).unwrap().validation.valid);
+        let manifest = validated_manifest(&path).unwrap(); let target = root.join("empty/sessions");
+        let result = restore_from_path_at_root(&no_safety_configuration(), &path, &manifest, &restore_preview(&manifest, &target), &target, None).unwrap();
+        assert_eq!(result.restored_count, 1); assert_eq!(fs::read(target.join("one.jsonl")).unwrap(), payload);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn rollback_reports_locked_file_instead_of_claiming_success() {
+        let root = restore_fixture_root("rollback-denied"); let path = root.join("locked"); fs::write(&path, "fixture").unwrap();
+        let handle = crate::environment::locked_read(&path).unwrap();
+        #[cfg(windows)] assert_eq!(rollback(&[path.clone()]), 1);
+        drop(handle); assert_eq!(rollback(&[path]), 0); fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn manifest_is_versioned_and_contains_only_selected_synthetic_sessions() {
@@ -814,6 +946,23 @@ mod tests {
             .errors
             .iter()
             .any(|error| error.contains("Unsupported backup format version")));
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn backup_format_v1_remains_the_only_backward_compatible_restore_format() {
+        let path = fixture_path("v1-compatibility");
+        let payload = valid_jsonl("synthetic-a");
+        let manifest = synthetic_manifest().replace("\"bytes\":17", &format!("\"bytes\":{}", payload.len()));
+        write_fixture(
+            &path,
+            &manifest,
+            &[("sessions/2026/09/04/rollout-a.jsonl", payload.as_slice())],
+        );
+        let inspection = inspect(&path).unwrap();
+        assert!(inspection.validation.valid, "{:?}", inspection.errors);
+        assert_eq!(inspection.validation.format_version, Some(FORMAT_VERSION));
+        assert!(validate_session_payload(&payload, "synthetic-a").is_ok());
         let _ = fs::remove_file(path);
     }
 

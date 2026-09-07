@@ -1,5 +1,15 @@
 # Architecture
 
+## Current 0.2.0 contract
+
+The Windows scope now includes environment archive v2, create-only file recovery and explicit catalog-cache cleanup. See [USER_GUIDE.md](USER_GUIDE.md) and [STORAGE_AUDIT.md](STORAGE_AUDIT.md) for the current included/excluded paths and limits. Desktop chat/database merging is **unfinished and unverified**. The milestone descriptions below are historical contracts, not the current feature scope.
+
+Environment ZIP uses `environment-manifest.json` with version 2, kind, timestamp, platform, CLI version and entries (`path`, `group`, `bytes`, `sha256`, `manual`). Inspection checks the complete ZIP inventory and every SHA-256; automatic restore never writes manual database/index/settings components. Session `manifest.json` v1 remains supported; `delete-manifest.json` v1 now uses the existing inspection/restore UI. Missing destination sessions folders are supported, and failed rollback is reported.
+
+New modules: `environment.rs` (offline Windows snapshot/preview/token/create-only recovery), `cleanup.rs` (strict remote catalog allowlist), `fs_safety.rs` (ancestor/reparse/path checks). Portable settings load/save use the same marker-selected location. UI changes invalidate previews and disable selection during operations. See [VALIDATION.md](VALIDATION.md) for actual checks.
+
+## Historical milestones
+
 Codex Companion is split into a React view layer and a Tauri/Rust boundary. The frontend never directly reads the Codex filesystem. It invokes narrow Rust commands which return small, serializable view models.
 
 ```text
@@ -17,8 +27,9 @@ React features -> services/tauri.ts -> Tauri commands -> codex/session_storage/p
 
 - `platform.rs`: the only place that resolves OS-dependent paths. `CODEX_HOME` overrides the default `~/.codex` location.
 - `codex.rs`: read-only diagnostics and CLI version probes.
-- `session_storage.rs`: version-conscious, read-only legacy rollout-session adapter. It recursively locates `.jsonl` files below the resolved `sessions/` root, reads only each file's first JSON record, requires `type: session_meta`, and normalizes its ID, timestamps, cwd/project, and source. Optional labels and update timestamps come from `session_index.jsonl`. It never reads message records.
-- `backup.rs`: export, inspection, and restore boundary. Restore accepts an opaque token from a successful inspection, revalidates the ZIP immediately before preview and copying, allows only explicitly selected manifest sessions, verifies JSONL `session_meta` IDs, re-snapshots conflicts at execution, emits structured `{ code, message }` failures, and writes under canonical `CODEX_HOME/sessions` through create-new semantics with rollback. Safety backups are independently versioned ZIPs with their own manifest.
+- `session_storage.rs`: version-conscious, read-only legacy rollout-session adapter. It recursively locates `.jsonl` files below the resolved `sessions/` root, reads only each file's first JSON record, and supports only `type: session_meta` with `payload.session_id` or `payload.id`. Optional labels and update timestamps come from `session_index.jsonl`. It never reads message records or guesses a newer schema.
+- `backup.rs`: export, inspection, and restore boundary. Restore accepts an opaque token from a successful inspection, revalidates the ZIP immediately before preview and copying, allows only explicitly selected manifest sessions, verifies the supported JSONL metadata variant and matching ID, re-snapshots conflicts at execution, emits structured `{ code, message }` failures, and writes under canonical `CODEX_HOME/sessions` through create-new semantics with rollback. Safety backups are independently versioned ZIPs with their own manifest.
+- `restore_history.rs`: a local, read-only audit store at `config/restore-history-v1.json`. It keeps newest-first, capped history DTOs and returns only safe summary fields to React.
 - `config.rs`: small JSON settings file, with safe defaults.
 - `commands.rs`: the allowlisted interface available to the frontend.
 - `logging.rs`: warning-level output by default; no periodic writer or background worker.
@@ -30,3 +41,8 @@ Portable mode requires a `portable-mode` marker file adjacent to the executable.
 ## Safety boundary
 
 Restore never overwrites: existing destination files are reported as conflicts and skipped. Rust validates destination roots, relative paths and parent symlinks, then rolls back files created in a failed operation. React receives DTOs and never reads ZIPs or writes the filesystem. `src/i18n` provides typed, dependency-free UI dictionaries; settings writes update the in-memory language value immediately after the native save completes.
+
+Restore history is Companion-owned storage, not Codex storage. Its format version is currently `1`; a malformed, symlinked, or future-version history file is unavailable rather than parsed speculatively. History persistence never contains session content, full archive source paths, tokens, credentials, or native error diagnostics.
+# Milestone 6: deletion path
+
+`ConversationsPage` sends only selected IDs and the literal confirmation. The Tauri command re-discovers and canonicalizes `CODEX_HOME/sessions`, accepts only regular non-symlink legacy files, snapshots exactly those files into a versioned quarantine ZIP plus `delete-manifest.json`, then verifies ZIP entries and metadata before calling `remove_file`. A mid-flight failure triggers strict create-new restoration from the verified ZIP; it never overwrites a concurrent file.

@@ -10,3 +10,7 @@ export function isWithinApprovedRoot(target: string, root: string): boolean {
   if (normalizedTarget.split("/").includes("..") || normalizedRoot.split("/").includes("..")) return false;
   return normalizedTarget === normalizedRoot || normalizedTarget.startsWith(`${normalizedRoot}/`);
 }
+
+export function selectionMatches(preview: readonly string[], selected: readonly string[]): boolean {
+  return preview.length === selected.length && preview.every((id, index) => id === selected[index]);
+}

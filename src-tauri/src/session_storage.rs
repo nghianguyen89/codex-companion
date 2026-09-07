@@ -56,7 +56,27 @@ struct SessionMetadata {
     id: Option<String>,
     timestamp: Option<String>,
     cwd: Option<String>,
-    source: Option<String>,
+    source: Option<SessionSource>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum SessionSource { Name(String), Agent { subagent: SubagentSource } }
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum SubagentSource { Other(String), ThreadSpawn { parent_thread_id: String, depth: u32, agent_path: String, agent_nickname: Option<String>, agent_role: Option<String> } }
+
+impl SessionSource {
+    fn label(&self) -> String {
+        match self {
+            Self::Name(name) => name.clone(),
+            Self::Agent { subagent: SubagentSource::Other(name) } => format!("subagent:{name}"),
+            Self::Agent { subagent: SubagentSource::ThreadSpawn { parent_thread_id, depth, agent_path, agent_nickname, agent_role } } => {
+                let _ = (parent_thread_id, depth, agent_nickname, agent_role);
+                format!("subagent:{agent_path}")
+            }
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -133,10 +153,7 @@ pub(crate) fn selected_sessions(
     if requested_ids.iter().collect::<HashSet<_>>().len() != requested_ids.len() {
         return Err("Duplicate conversation selections are not allowed.".into());
     }
-    let sessions_root = home.join("sessions");
-    let root = sessions_root
-        .canonicalize()
-        .map_err(|_| "The Codex sessions directory is unavailable.".to_string())?;
+    let root = canonical_sessions_root(home)?;
     let index = read_session_index(&home.join("session_index.jsonl"));
     let mut files = Vec::new();
     let mut ignored = 0;
@@ -144,10 +161,7 @@ pub(crate) fn selected_sessions(
         .map_err(|_| "The Codex sessions directory could not be read.".to_string())?;
     let mut by_id = HashMap::new();
     for path in files {
-        let Ok(path) = path.canonicalize() else {
-            continue;
-        };
-        if !path.starts_with(&root) {
+        if verify_regular_file_within(&path, &root).is_err() {
             continue;
         }
         if let Ok(summary) = parse_session_metadata(&path, &index) {
@@ -159,9 +173,9 @@ pub(crate) fn selected_sessions(
         let (summary, source_path) = by_id
             .remove(id)
             .ok_or_else(|| format!("Selected conversation is unavailable or unsupported: {id}"))?;
-        let source_path = source_path
-            .canonicalize()
-            .map_err(|_| format!("Selected conversation cannot be read: {id}"))?;
+        verify_regular_file_within(&source_path, &root)
+            .map_err(|_| format!("Selected conversation cannot be read safely: {id}"))?;
+        let source_path = source_path.canonicalize().map_err(|_| format!("Selected conversation cannot be read: {id}"))?;
         let relative = source_path.strip_prefix(&root).map_err(|_| {
             "Rejected a session path outside the Codex sessions directory.".to_string()
         })?;
@@ -183,6 +197,36 @@ pub(crate) fn selected_sessions(
         });
     }
     Ok(selected)
+}
+
+/// Resolves the only local storage root covered by the legacy compatibility contract.  A
+/// symlinked root is deliberately rejected rather than followed.
+pub(crate) fn canonical_sessions_root(home: &Path) -> Result<PathBuf, String> {
+    let sessions_root = home.join("sessions");
+    crate::fs_safety::check(&sessions_root)?;
+    let metadata = fs::symlink_metadata(&sessions_root)
+        .map_err(|_| "The Codex sessions directory is unavailable.".to_string())?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err("The Codex sessions directory is unavailable.".into());
+    }
+    sessions_root
+        .canonicalize()
+        .map_err(|_| "The Codex sessions directory is unavailable.".to_string())
+}
+
+/// Checks the file again immediately before a destructive workflow reads or removes it.  This
+/// avoids accepting a UI supplied path and rejects symlinks rather than traversing them.
+pub(crate) fn verify_regular_file_within(path: &Path, root: &Path) -> Result<(), String> {
+    crate::fs_safety::check(path)?;
+    let metadata = fs::symlink_metadata(path).map_err(|_| "Selected session is unavailable.".to_string())?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("Selected session is not a regular file.".into());
+    }
+    let canonical = path.canonicalize().map_err(|_| "Selected session is unavailable.".to_string())?;
+    if !canonical.starts_with(root) {
+        return Err("Rejected a session path outside the Codex sessions directory.".into());
+    }
+    Ok(())
 }
 
 fn empty(status: DiscoveryStatus) -> ConversationDiscovery {
@@ -226,9 +270,13 @@ fn collect_session_files(
     for entry in fs::read_dir(directory)? {
         let entry = entry?;
         let path = entry.path();
-        if path.is_dir() {
+        let file_type = entry.file_type()?;
+        // `DirEntry::file_type` observes a symlink itself; `Path::is_dir` would follow it.
+        if crate::fs_safety::linked(&fs::symlink_metadata(&path)?) {
+            *unsupported += 1;
+        } else if file_type.is_dir() {
             collect_session_files(&path, files, unsupported)?;
-        } else if path
+        } else if file_type.is_file() && path
             .extension()
             .is_some_and(|extension| extension == "jsonl")
         {
@@ -257,12 +305,36 @@ fn parse_session_metadata(
         .next()
         .ok_or(ParseError::Malformed)?
         .map_err(|_| ParseError::Unreadable)?;
+    parse_session_metadata_line(&first_line, index)
+}
+
+/// The compatibility boundary is intentionally narrow: legacy `session_meta` records may use
+/// either `payload.session_id` or the observed `payload.id` alias. New record types are not
+/// guessed at or coerced into this schema.
+fn parse_session_metadata_line(
+    first_line: &str,
+    index: &SessionIndex,
+) -> Result<ConversationSummary, ParseError> {
     let record: SessionRecord =
-        serde_json::from_str(&first_line).map_err(|_| ParseError::Malformed)?;
+        serde_json::from_str(first_line).map_err(|_| ParseError::Malformed)?;
     if record.record_type != "session_meta" {
         return Err(ParseError::Unsupported);
     }
     normalize_session_metadata(record, index)
+}
+
+pub(crate) fn validate_restorable_session_metadata(bytes: &[u8], expected_id: &str) -> Result<(), &'static str> {
+    let first = bytes.split(|byte| *byte == b'\n').next().ok_or("Archive session is empty.")?;
+    let first_line = std::str::from_utf8(first).map_err(|_| "Archive session is not UTF-8 JSONL metadata.")?;
+    let summary = parse_session_metadata_line(first_line, &SessionIndex::default()).map_err(|error| match error {
+        ParseError::Unsupported => "Archive session uses an unsupported Codex metadata format.",
+        ParseError::Malformed => "Archive session is not valid Codex metadata.",
+        ParseError::Unreadable => "Archive session metadata is unreadable.",
+    })?;
+    if summary.id != expected_id {
+        return Err("Archive session metadata does not match its manifest entry.");
+    }
+    Ok(())
 }
 
 fn normalize_session_metadata(
@@ -294,7 +366,7 @@ fn normalize_session_metadata(
         source: record
             .payload
             .source
-            .clone()
+            .as_ref().map(SessionSource::label)
             .filter(|value| !value.is_empty()),
     })
 }
@@ -302,6 +374,16 @@ fn normalize_session_metadata(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn observed_object_sources_and_unknown_variant() {
+        for source in [r#"{"subagent":{"other":"guardian"}}"#, r#"{"subagent":{"thread_spawn":{"parent_thread_id":"synthetic","depth":1,"agent_path":"/root/test","agent_nickname":"Test","agent_role":null}}}"#] {
+            let line = format!(r#"{{"type":"session_meta","payload":{{"id":"fixture","source":{source}}}}}"#);
+            assert!(parse_session_metadata_line(&line, &SessionIndex::default()).unwrap().source.unwrap().starts_with("subagent:"));
+            validate_restorable_session_metadata(line.as_bytes(), "fixture").unwrap();
+        }
+        assert!(parse_session_metadata_line(r#"{"type":"session_meta","payload":{"id":"fixture","source":{"future":{}}}}"#, &SessionIndex::default()).is_err());
+    }
 
     #[test]
     fn parses_legacy_session_metadata() {
@@ -336,6 +418,35 @@ mod tests {
         assert_eq!(summary.title.as_deref(), Some("Synthetic title"));
         assert_eq!(summary.project_name.as_deref(), Some("demo"));
         assert_eq!(summary.updated_at.as_deref(), Some("2026-09-04T11:00:00Z"));
+    }
+
+    #[test]
+    fn supports_only_documented_legacy_metadata_variants() {
+        let session_id = parse_session_metadata_line(
+            r#"{"timestamp":"2026-09-04T10:00:00Z","type":"session_meta","payload":{"session_id":"legacy-id","cwd":"/work/demo"}}"#,
+            &SessionIndex::default(),
+        ).unwrap();
+        let id_alias = parse_session_metadata_line(
+            r#"{"type":"session_meta","payload":{"id":"alias-id","timestamp":"2026-09-04T10:00:00Z"}}"#,
+            &SessionIndex::default(),
+        ).unwrap();
+        assert_eq!(session_id.id, "legacy-id");
+        assert_eq!(id_alias.id, "alias-id");
+    }
+
+    #[test]
+    fn rejects_unknown_or_invalid_metadata_variants_without_guessing() {
+        assert!(matches!(
+            parse_session_metadata_line(r#"{"type":"session_meta_v2","payload":{"session_id":"new"}}"#, &SessionIndex::default()),
+            Err(ParseError::Unsupported)
+        ));
+        assert!(matches!(
+            parse_session_metadata_line(r#"{"type":"session_meta","payload":{"session_id":42}}"#, &SessionIndex::default()),
+            Err(ParseError::Malformed)
+        ));
+        assert!(validate_restorable_session_metadata(b"{\"type\":\"session_meta_v2\",\"payload\":{\"session_id\":\"new\"}}\n", "new")
+            .unwrap_err()
+            .contains("unsupported"));
     }
 
     #[test]
@@ -386,6 +497,22 @@ mod tests {
             selected[0].archive_path,
             "sessions/2026/09/04/rollout-a.jsonl"
         );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn ignores_symlinked_session_files_and_directories() {
+        let root = std::env::temp_dir().join(format!("codex-companion-symlink-test-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let sessions = root.join("sessions/2026/09/04"); fs::create_dir_all(&sessions).unwrap();
+        let target = root.join("outside.jsonl"); fs::write(&target, r#"{"type":"session_meta","payload":{"session_id":"outside"}}"#).unwrap();
+        let link = sessions.join("linked.jsonl");
+        #[cfg(windows)] let linked = std::os::windows::fs::symlink_file(&target, &link);
+        #[cfg(unix)] let linked = std::os::unix::fs::symlink(&target, &link);
+        if linked.is_ok() {
+            let discovery = discover_sessions_in(&root);
+            assert!(discovery.conversations.is_empty());
+            assert!(selected_sessions(&root, &["outside".into()]).is_err());
+        }
         let _ = fs::remove_dir_all(root);
     }
 }

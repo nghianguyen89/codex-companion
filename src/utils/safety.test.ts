@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { isWithinApprovedRoot } from "./safety";
+import { isWithinApprovedRoot, selectionMatches } from "./safety";
+
+it("requires the exact preview selection, including IDs containing delimiters", () => {
+  expect(selectionMatches(["a"], ["a"])).toBe(true);
+  expect(selectionMatches(["a"], ["b"])).toBe(false);
+  expect(selectionMatches(["a"], ["a", "b"])).toBe(false);
+  expect(selectionMatches(["a\0b"], ["a", "b"])).toBe(false);
+});
 
 describe("isWithinApprovedRoot", () => {
   it("accepts a child path under its approved root", () => {

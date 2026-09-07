@@ -2,8 +2,27 @@ use crate::{
     backup, codex,
     config::{self, AppConfiguration, ConfigurationError},
     session_storage,
+    local_delete,
 };
 use tauri_plugin_dialog::DialogExt;
+
+#[tauri::command]
+pub fn preview_environment(groups: Vec<String>) -> Result<crate::environment::Preview, String> { crate::environment::preview(groups) }
+#[tauri::command]
+pub fn create_environment(token: String) -> Result<crate::environment::Created, String> { crate::environment::create(&token) }
+#[tauri::command]
+pub fn inspect_environment(app: tauri::AppHandle) -> Result<Option<crate::environment::Preview>, String> {
+    let Some(file) = app.dialog().file().add_filter("Environment ZIP", &["zip"]).blocking_pick_file() else { return Ok(None); };
+    crate::environment::inspect(file.into_path().map_err(|e| e.to_string())?).map(Some)
+}
+#[tauri::command]
+pub fn preview_environment_restore(token: String) -> Result<crate::environment::RestorePreview, String> { crate::environment::preview_restore(&token) }
+#[tauri::command]
+pub fn restore_environment(token: String, confirmation: String) -> Result<crate::environment::Restored, String> { crate::environment::restore(&token, &confirmation) }
+#[tauri::command]
+pub fn scan_cleanup() -> Result<crate::cleanup::Scan, String> { crate::cleanup::scan() }
+#[tauri::command]
+pub fn execute_cleanup(token: String, confirmation: String) -> Result<crate::cleanup::Outcome, String> { crate::cleanup::execute(&token, &confirmation) }
 
 fn configuration_error(error: ConfigurationError) -> String {
     tracing::warn!("configuration error: {error}");
@@ -64,6 +83,21 @@ pub fn preview_restore(restore_token: String, selected_ids: Vec<String>) -> Resu
 pub fn restore_archive(restore_token: String, selected_ids: Vec<String>) -> Result<backup::RestoreResult, backup::BackupError> {
     let configuration = config::load().map_err(|error| backup::BackupError::from_message(configuration_error(error)))?;
     backup::restore(&configuration, &restore_token, &selected_ids).map_err(backup::BackupError::from_message)
+}
+#[tauri::command]
+pub fn get_restore_history() -> Result<Vec<crate::restore_history::RestoreHistoryEntry>, backup::BackupError> {
+    let configuration = config::load().map_err(|error| backup::BackupError::from_message(configuration_error(error)))?;
+    crate::restore_history::list(&configuration).map_err(backup::BackupError::from_message)
+}
+#[tauri::command]
+pub fn preview_local_delete(selected_ids: Vec<String>) -> Result<local_delete::DeletePreview, backup::BackupError> {
+    let configuration = config::load().map_err(|error| backup::BackupError::from_message(configuration_error(error)))?;
+    local_delete::preview(&configuration, &selected_ids).map_err(backup::BackupError::from_message)
+}
+#[tauri::command]
+pub fn execute_local_delete(selected_ids: Vec<String>, confirmation: String) -> Result<local_delete::DeleteResult, backup::BackupError> {
+    let configuration = config::load().map_err(|error| backup::BackupError::from_message(configuration_error(error)))?;
+    local_delete::execute(&configuration, &selected_ids, &confirmation).map_err(backup::BackupError::from_message)
 }
 #[tauri::command]
 pub fn get_configuration() -> Result<AppConfiguration, String> {

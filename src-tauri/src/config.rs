@@ -52,7 +52,7 @@ pub enum ConfigurationError {
 }
 
 fn config_file() -> PathBuf {
-    crate::platform::app_data_dir()
+    crate::platform::portable_root().unwrap_or_else(crate::platform::app_data_dir)
         .join("config")
         .join("settings.json")
 }
@@ -64,10 +64,11 @@ pub fn load() -> Result<AppConfiguration, ConfigurationError> {
     Ok(serde_json::from_slice(&fs::read(path)?)?)
 }
 pub fn save(configuration: &AppConfiguration) -> Result<(), ConfigurationError> {
-    let directory = crate::platform::config_dir(configuration);
+    let path = config_file();
+    let directory = path.parent().expect("settings parent");
     fs::create_dir_all(&directory)?;
     let content = serde_json::to_vec_pretty(configuration)?;
-    fs::write(directory.join("settings.json"), content)?;
+    fs::write(path, content)?;
     Ok(())
 }
 

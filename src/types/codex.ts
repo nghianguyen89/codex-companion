@@ -86,3 +86,20 @@ export interface ArchiveInspection {
 }
 export interface RestorePreview { sessionCount: number; totalBytes: number; destinationRoot: string; sessions: Array<{ id: string; archivePath: string; destinationPath: string; bytes: number; conflict: boolean }>; conflictCount: number; plannedCreates: number; safetyBackupWillBeCreated: boolean; }
 export interface RestoreResult { restoredCount: number; skippedConflicts: number; totalBytes: number; safetyBackupPath: string | null; }
+export interface DeletePreview { formatVersion: number; sessionCount: number; totalBytes: number; quarantineDirectory: string; sessions: BackupSession[]; localOnly: boolean; }
+export type DeleteOutcome = "completed" | "partial" | "rolledBack" | "failed";
+export interface DeleteResult { outcome: DeleteOutcome; deletedCount: number; restoredCount: number; skippedCount: number; totalBytes: number; safetyArchivePath: string | null; }
+export type RestoreOutcome = "completed" | "partial" | "rolledBack" | "failed";
+export type HistoryAction = "restore" | "delete";
+export interface RestoreHistoryEntry {
+  occurredAt: string;
+  action: HistoryAction;
+  archiveName: string;
+  sessionIds: string[];
+  deletedCount: number;
+  restoredCount: number;
+  skippedConflicts: number;
+  safetyBackupPath: string | null;
+  outcome: RestoreOutcome;
+  errorCode: string | null;
+}

@@ -1,6 +1,6 @@
 [package]
 name = "codex-companion"
-version = "0.1.0"
+version = "0.2.0"
 description = "A safe, local companion utility for Codex"
 authors = ["Codex Companion contributors"]
 edition = "2021"
@@ -14,6 +14,7 @@ crate-type = ["lib", "cdylib", "staticlib"]
 tauri-build = { version = "2.5.1", features = [] }
 
 [dependencies]
+sha2 = "0.10"
 dirs = "6.0.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
