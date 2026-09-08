@@ -10,7 +10,7 @@ New modules: `environment.rs` (offline Windows snapshot/preview/token/create-onl
 
 ## Historical milestones
 
-Codex Companion is split into a React view layer and a Tauri/Rust boundary. The frontend never directly reads the Codex filesystem. It invokes narrow Rust commands which return small, serializable view models.
+Dev Companion is split into a React view layer and a Tauri/Rust boundary. The frontend never directly reads managed application filesystems. It invokes narrow Rust commands which return small, serializable view models.
 
 ```text
 React features -> services/tauri.ts -> Tauri commands -> codex/session_storage/platform/config modules -> local filesystem
@@ -59,6 +59,12 @@ and staging locations; no app directory is written.
 The existing Codex backup, deletion, environment commands, DTOs and manifest
 readers are unchanged. Personal bundles have no operation-history integration.
 
+The product is branded Dev Companion, while `platform.rs` deliberately retains
+the `codex-companion` application-data directory and all established archive
+kinds for backward compatibility. A future app is added as another concrete
+Rust module, card, commands, DTOs, fixtures and documentation; no generic
+provider layer is introduced until real shared behavior proves necessary.
+
 ## Phase 2 SourceTree boundary
 
 `sourcetree.rs` is a second concrete personal-bundle-v1 reader/writer, separate
@@ -75,3 +81,23 @@ checks `tasklist.exe` and never terminates it. Recovery always writes a fresh
 `bookmarks.xml` to Companion-owned staging after token, archive hash/inventory,
 and destination-state revalidation. The regular SourceTree location is shown as
 a conflict/manual-placement preview only; Companion never writes or imports it.
+
+## Phase 3 XAMPP files boundary
+
+`xampp.rs` is a third concrete `personal-bundle-v1` reader/writer. It is
+Windows-only and accepts only explicitly selected direct children of the
+detected XAMPP `htdocs` directory plus four reviewed UTF-8 configuration files:
+`apache/conf/httpd.conf`, `apache/conf/extra/httpd-vhosts.conf`, `php/php.ini`,
+and `mysql/bin/my.ini`. It detects XAMPP version and architecture from the
+fixture-proven release-notes header; XAMPP binaries and MariaDB data are never
+read into the bundle.
+
+Apache, MariaDB, and XAMPP-related processes must be stopped for preview,
+creation, and recovery; Companion only checks `tasklist.exe`. The strict
+inventory hashes every file and rejects unsafe paths, reparse points, unknown
+configuration, credential/key indicators in configuration, and ZIP inventory
+or size/count/hash mismatches. Known logs, caches, repository metadata and
+credential/key file names are excluded. Recovery validates the token, archive
+hash/inventory, matching destination version/architecture, and destination
+state, then writes create-new files only to Companion-owned staging with
+rollback. XAMPP placement and MariaDB import remain manual.

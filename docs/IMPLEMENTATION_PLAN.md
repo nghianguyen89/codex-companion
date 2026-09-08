@@ -30,8 +30,9 @@ credential migration, or blind restoration of live databases.
 - SHA-256 verification, strict archive inventory, create-new/no-overwrite
   restore and rollback where the tool writes files.
 - Codex compatibility without changing existing archive readers.
-- Beyond Compare native settings packages created with secret export disabled;
-  the opaque package and containing bundle are still treated as sensitive.
+- Beyond Compare native settings packages may include saved passwords and
+  FTP/SSH credentials only after explicit user selection; the opaque package
+  and containing bundle are always treated as sensitive.
 - Parsed, fixture-proven SourceTree bookmarks without account credentials.
 - XAMPP selected `htdocs` projects, reviewed text configuration and logical SQL dumps.
 
@@ -97,8 +98,8 @@ IDs, adapter versions, extra/nested ZIP entries and unsafe paths are rejected.
 2. Treat every bundle as sensitive, even when secret export is disabled. Permit
    transport only on trusted encrypted storage; do not add cloud sync while the
    bundle lacks authenticated encryption.
-3. Keep the product name and current Codex navigation until the first non-Codex
-   adapter is validated.
+3. Keep established data locations and archive formats when rebranding the
+   product; do not introduce a generic migration-platform framework.
 4. Defer personal-operation history. If later required, use a separate
    `personal-history-v1.json`; never widen the Codex-specific history schema.
 
@@ -109,10 +110,10 @@ IDs, adapter versions, extra/nested ZIP entries and unsafe paths are rejected.
 3. Hash and package it without interpreting or rewriting its payload.
 4. On recovery, extract create-new to a Companion staging folder and direct the
    user to native `Tools > Import Settings`.
-5. Require the native export options for passwords/authentication tokens to be
-   disabled and record user acknowledgement. Because this cannot be proven from
-   an opaque package, still classify the artifact as sensitive and require
-   encrypted transport. Never include or migrate the license key.
+5. Record whether the user selected native export of saved passwords and
+   FTP/SSH credentials. Because this cannot be proven from an opaque package,
+   still classify the artifact as sensitive and require encrypted transport.
+   Never include or migrate the license key.
 
 ### Phase 2 — SourceTree non-secret settings
 
@@ -157,9 +158,9 @@ IDs, adapter versions, extra/nested ZIP entries and unsafe paths are rejected.
 
 ### Phase 5 — Product rename and polish
 
-Only after two non-Codex adapters pass real-machine restore tests, rename the
-product and generalize navigation/copy. Avoid a speculative migration-platform
-framework before this gate.
+Completed branding as Dev Companion while preserving existing data locations
+and archive contracts. Continue to avoid a speculative migration-platform
+framework.
 
 ## Likely affected areas
 
@@ -235,10 +236,32 @@ separate concrete strict reader/writer: it accepts only the fixture-proven
 detected version and machine-specific bookmark paths, validates source/archive/
 destination state twice, and recovers create-new only to Companion staging.
 SourceTree placement remains manual even when absent; conflicts are previewed.
-No generic provider API/catalog, personal history, product rename, XAMPP,
-credentials/licenses, cloud, scheduling, incremental mode, overwrite mode, or
-automatic SourceTree import was added.
+No generic provider API/catalog, personal history, cloud, scheduling,
+incremental mode, overwrite mode, or automatic SourceTree import was added.
 
 Phase 2 validation completed: `pnpm lint`, `pnpm check`, `pnpm test` (15 tests),
 `pnpm build`, Cargo check, Cargo library tests (52 tests), `git diff --check`,
 and the Windows x64 NSIS bundle passed. MSI was not run.
+
+## Phase 3 implementation status — 2026-09-07
+
+Implemented only XAMPP file migration: direct user-selected `htdocs` projects
+and four fixture-reviewed text configuration files. The concrete `xampp.rs`
+bundle does not alter Codex archive commands/DTOs, Beyond Compare, or
+SourceTree. It requires Apache/MariaDB/XAMPP-related processes stopped without
+terminating them, detects compatible XAMPP version/architecture, verifies
+source identity before creation, and validates SHA-256, count, size, inventory,
+archive hash and destination state before staging-only recovery. No provider
+trait, plugin SDK, catalog, cloud sync, scheduler, incremental/overwrite mode,
+binaries, MariaDB data, SQL dumps, automatic placement, or import was added.
+
+## Dev Companion branding and credential-selection delta — 2026-09-08
+
+The product is now branded Dev Companion. The Tauri product name, installer,
+portable executable and visible UI labels changed, but the legacy
+`codex-companion` application-data directory and all archive kinds/formats
+remain fixed for compatibility. Beyond Compare now records the explicit user
+choice whether a native opaque `.bcpkg` includes saved passwords or FTP/SSH
+credentials; it does not inspect the package, move a license, encrypt the ZIP,
+upload it, or import it automatically. A future application remains a concrete
+adapter/card/command/test slice, not a provider framework.

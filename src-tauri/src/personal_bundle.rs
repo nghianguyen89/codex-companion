@@ -77,7 +77,7 @@ pub struct RecoveryResult { pub recovered: bool, pub staging_path: String }
 
 #[derive(Clone)]
 enum Plan {
-    Create { package: PathBuf, bytes: u64, sha256: String },
+    Create { package: PathBuf, bytes: u64, sha256: String, credentials_included: bool },
     Inspect { bundle: PathBuf, bundle_hash: String },
     Recover { bundle: PathBuf, bundle_hash: String, target: PathBuf, bytes: u64 },
 }
@@ -118,7 +118,7 @@ fn valid_hash(hash: &str) -> bool { hash.len() == 64 && hash.bytes().all(|byte| 
 fn exact_artifact(artifact: &Artifact) -> bool {
     artifact.app_id == beyond_compare::APP_ID && artifact.adapter_format_version == 1 && artifact.source_app_version.0
         && artifact.kind == "settings-package" && artifact.archive_path == beyond_compare::ARTIFACT_PATH
-        && artifact.files == 1 && artifact.restore_mode == "manual" && artifact.secret_export_disabled_acknowledged
+        && artifact.files == 1 && artifact.restore_mode == "manual"
         && artifact.bytes <= beyond_compare::MAX_PACKAGE_BYTES && valid_hash(&artifact.sha256)
 }
 fn validate_manifest(manifest: &Manifest) -> Result<&Artifact> {
@@ -132,22 +132,21 @@ fn validate_manifest(manifest: &Manifest) -> Result<&Artifact> {
 }
 fn safe_name(path: &Path) -> String { path.file_name().and_then(|name| name.to_str()).filter(|name| !name.is_empty()).unwrap_or("settings.bcpkg").to_owned() }
 
-pub fn preview_create(package: PathBuf, secret_export_disabled: bool) -> Result<BundlePreview> {
-    if !secret_export_disabled { return Err("Confirm that password and authentication-token export was disabled.".into()); }
+pub fn preview_create(package: PathBuf, credentials_included: bool) -> Result<BundlePreview> {
     let declared = beyond_compare::validate_package(&package)?;
     let (sha256, bytes) = hash_file(&package)?;
     if bytes != declared { return Err("Selected package changed; choose it again.".into()); }
     let package_name = safe_name(&package);
-    let token = put(Plan::Create { package, bytes, sha256 });
+    let token = put(Plan::Create { package, bytes, sha256, credentials_included });
     Ok(BundlePreview { token, package_name, bytes, sensitive: true })
 }
 
 pub fn create(token: &str) -> Result<BundleCreated> {
-    let Plan::Create { package, bytes, sha256 } = get(token)? else { return Err("Preview the Beyond Compare package first.".into()); };
+    let Plan::Create { package, bytes, sha256, credentials_included } = get(token)? else { return Err("Preview the Beyond Compare package first.".into()); };
     if beyond_compare::validate_package(&package)? != bytes || hash_file(&package)? != (sha256.clone(), bytes) { return Err("Selected package changed; preview again.".into()); }
-    create_at(&package, bytes, sha256, &platform::personal_bundle_dir())
+    create_at(&package, bytes, sha256, credentials_included, &platform::personal_bundle_dir())
 }
-fn create_at(package: &Path, bytes: u64, sha256: String, output: &Path) -> Result<BundleCreated> {
+fn create_at(package: &Path, bytes: u64, sha256: String, credentials_included: bool, output: &Path) -> Result<BundleCreated> {
     fs_safety::check(output)?; fs::create_dir_all(output).map_err(|_| "Cannot create the Companion bundle folder.".to_string())?; fs_safety::check(output)?;
     let stamp = time::OffsetDateTime::now_utc().unix_timestamp_nanos();
     let path = output.join(format!("personal-bundle-{stamp}.zip"));
@@ -155,7 +154,7 @@ fn create_at(package: &Path, bytes: u64, sha256: String, output: &Path) -> Resul
     let result = (|| -> Result<()> {
         let output_file = OpenOptions::new().create_new(true).write(true).open(&path).map_err(|_| "Cannot create the personal bundle.".to_string())?;
         created = true;
-        let artifact = Artifact { app_id: beyond_compare::APP_ID.into(), adapter_format_version: 1, source_app_version: ExplicitNull(true), kind: "settings-package".into(), archive_path: beyond_compare::ARTIFACT_PATH.into(), files: 1, bytes, sha256: sha256.clone(), restore_mode: "manual".into(), secret_export_disabled_acknowledged: true };
+        let artifact = Artifact { app_id: beyond_compare::APP_ID.into(), adapter_format_version: 1, source_app_version: ExplicitNull(true), kind: "settings-package".into(), archive_path: beyond_compare::ARTIFACT_PATH.into(), files: 1, bytes, sha256: sha256.clone(), restore_mode: "manual".into(), secret_export_disabled_acknowledged: !credentials_included };
         let manifest = Manifest { format_version: FORMAT_VERSION, kind: KIND.into(), created_at: timestamp()?, platform: PLATFORM.into(), sensitive: true, artifacts: vec![artifact] };
         let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
         let mut zip = ZipWriter::new(output_file);
@@ -288,12 +287,11 @@ mod tests {
     }
     fn manifest() -> Manifest { let hash = format!("{:x}", Sha256::digest(b"opaque-synthetic-package")); Manifest { format_version: 1, kind: KIND.into(), created_at: "2026-09-07T00:00:00Z".into(), platform: PLATFORM.into(), sensitive: true, artifacts: vec![Artifact { app_id: beyond_compare::APP_ID.into(), adapter_format_version: 1, source_app_version: ExplicitNull(true), kind: "settings-package".into(), archive_path: beyond_compare::ARTIFACT_PATH.into(), files: 1, bytes: 24, sha256: hash, restore_mode: "manual".into(), secret_export_disabled_acknowledged: true }] } }
     #[test]
-    fn roundtrip_requires_acknowledgement_and_keeps_package_opaque() {
+    fn roundtrip_records_credential_choice_and_keeps_package_opaque() {
         if !cfg!(windows) { return; }
-        let root = root(); let package = package(&root); assert!(preview_create(package.clone(), false).is_err());
-        let preview = preview_create(package.clone(), true).unwrap();
-        let created = create_at(&package, preview.bytes, hash_file(&package).unwrap().0, &root.join("bundles")).unwrap(); assert!(created.bundle_name.ends_with(".zip"));
-        let bundle = root.join("bundles").join(created.bundle_name); let inspected = inspect(bundle).unwrap(); let recovery = preview_recovery(&inspected.token).unwrap(); assert_eq!(recovery.package_name, "settings.bcpkg"); assert!(recovery.bytes > 0 && recovery.staging_path.contains("staging"));
+        let root = root(); let package = package(&root); let preview = preview_create(package.clone(), true).unwrap();
+        let created = create_at(&package, preview.bytes, hash_file(&package).unwrap().0, true, &root.join("bundles")).unwrap(); assert!(created.bundle_name.ends_with(".zip"));
+        let bundle = root.join("bundles").join(created.bundle_name); let (manifest, _) = inspect_at(&bundle).unwrap(); assert!(!manifest.artifacts[0].secret_export_disabled_acknowledged); let inspected = inspect(bundle).unwrap(); let recovery = preview_recovery(&inspected.token).unwrap(); assert_eq!(recovery.package_name, "settings.bcpkg"); assert!(recovery.bytes > 0 && recovery.staging_path.contains("staging"));
     }
     #[test]
     fn rejects_extra_unsafe_and_case_colliding_zip_entries() {
@@ -330,7 +328,7 @@ mod tests {
     #[test]
     fn create_revalidates_the_selected_package() {
         if !cfg!(windows) { return; }
-        let root = root(); let source = package(&root); let preview = preview_create(source.clone(), true).unwrap(); fs::write(source, b"changed").unwrap();
+        let root = root(); let source = package(&root); let preview = preview_create(source.clone(), false).unwrap(); fs::write(source, b"changed").unwrap();
         assert!(create(&preview.token).is_err());
     }
 }

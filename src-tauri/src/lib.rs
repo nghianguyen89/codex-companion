@@ -13,6 +13,7 @@ mod personal_bundle;
 mod restore_history;
 mod session_storage;
 mod sourcetree;
+mod xampp;
 
 use commands::{
     create_backup, discover_conversations, get_codex_paths, get_configuration, get_diagnostics,
@@ -46,8 +47,11 @@ pub fn run() {
             commands::preview_beyond_compare_recovery, commands::recover_beyond_compare
             ,commands::get_sourcetree_readiness, commands::preview_sourcetree,
             commands::create_sourcetree_bundle, commands::inspect_sourcetree_bundle,
-            commands::preview_sourcetree_recovery, commands::recover_sourcetree
+            commands::preview_sourcetree_recovery, commands::recover_sourcetree,
+            commands::get_xampp_readiness, commands::preview_xampp,
+            commands::create_xampp_bundle, commands::inspect_xampp_bundle,
+            commands::preview_xampp_recovery, commands::recover_xampp
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Codex Companion");
+        .expect("error while running Dev Companion");
 }

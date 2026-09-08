@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { BackupPage } from "../features/backup/BackupPage";
 import { BeyondComparePage } from "../features/backup/BeyondComparePage";
 import { SourceTreePage } from "../features/backup/SourceTreePage";
+import { XamppPage } from "../features/backup/XamppPage";
 import { ConversationsPage } from "../features/conversations/ConversationsPage";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
 import { DiagnosticsPage } from "../features/diagnostics/DiagnosticsPage";
@@ -15,11 +16,12 @@ import { getConfiguration, getDiagnostics, saveConfiguration } from "../services
 import type { AppConfiguration } from "../types/codex";
 import { I18nProvider, translate, type TranslationKey } from "../i18n";
 
-type Page = "environment" | "beyondCompare" | "sourceTree" | "cleanup" | "dashboard" | "conversations" | "backup" | "skills" | "pets" | "diagnostics" | "settings";
+type Page = "environment" | "beyondCompare" | "sourceTree" | "xampp" | "cleanup" | "dashboard" | "conversations" | "backup" | "skills" | "pets" | "diagnostics" | "settings";
 const navigation: Array<{ id: Page; label: TranslationKey; group: TranslationKey }> = [
   { id: "environment", label: "environment.title", group: "nav.manage" }, { id: "cleanup", label: "cleanup.title", group: "nav.tools" },
   { id: "beyondCompare", label: "beyondCompare.title", group: "nav.manage" },
   { id: "sourceTree", label: "sourceTree.title", group: "nav.manage" },
+  { id: "xampp", label: "xampp.title", group: "nav.manage" },
   { id: "dashboard", label: "nav.dashboard", group: "nav.overview" }, { id: "conversations", label: "nav.conversations", group: "nav.manage" },
   { id: "backup", label: "nav.backup", group: "nav.manage" }, { id: "skills", label: "nav.skills", group: "nav.codex" },
   { id: "pets", label: "nav.pets", group: "nav.codex" }, { id: "diagnostics", label: "nav.diagnostics", group: "nav.tools" }, { id: "settings", label: "nav.settings", group: "nav.preferences" }
@@ -37,7 +39,7 @@ export function App() {
 
   return <I18nProvider value={{ language, t }}><main className="app-shell">
     <aside className="sidebar">
-      <div className="brand"><span className="brand-mark">C</span><div><strong>Codex</strong><span>Companion</span></div></div>
+      <div className="brand"><span className="brand-mark">D</span><div><strong>Dev</strong><span>Companion</span></div></div>
       <nav aria-label={t("nav.primary")}>{groups.map((group) => <section key={group}><p>{t(group)}</p>{navigation.filter((item) => item.group === group).map((item) => <button key={item.id} className={page === item.id ? "active" : ""} type="button" onClick={() => setPage(item.id)}>{t(item.label)}</button>)}</section>)}</nav>
       <footer><span className="status-dot" /> {t("nav.localFoundation")}</footer>
     </aside>
@@ -48,6 +50,7 @@ export function App() {
       {page === "environment" && <EnvironmentPage />}
       {page === "beyondCompare" && <BeyondComparePage />}
       {page === "sourceTree" && <SourceTreePage />}
+      {page === "xampp" && <XamppPage />}
       {page === "cleanup" && <CleanupPage />}
       {page === "skills" && <SkillsPage />}
       {page === "pets" && <PetsPage />}

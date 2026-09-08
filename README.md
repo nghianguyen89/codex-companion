@@ -1,8 +1,8 @@
-# Codex Companion
+# Dev Companion
 
-Codex Companion is a lightweight, cross-platform desktop control panel for a local OpenAI Codex environment. It is an independent community utility, not an official OpenAI product.
+Dev Companion is a lightweight Windows-first desktop utility for selected local developer-tool workflows, including an OpenAI Codex environment. It is an independent community utility, not an official OpenAI product.
 
-It does not replace Codex Desktop, alter its binaries, embed it, or use undocumented network APIs. Codex data changes are explicit: create-only recovery, selected local session deletion with safety archives, and allowlisted cache cleanup.
+It does not replace Codex Desktop, Beyond Compare, SourceTree, XAMPP, or alter their binaries. Local data changes are explicit: create-only recovery, selected local session deletion with safety archives, and allowlisted cache cleanup.
 
 ## Version 0.2.0
 
@@ -18,7 +18,7 @@ Milestone 5 adds safe restore history and explicit storage compatibility boundar
 
 ## Supported platforms
 
-The source is designed for Windows, macOS, and Linux. Native bundles must be produced on their matching operating systems through CI.
+The current app-adapter workflows are Windows-only. Native bundles must be produced on their matching operating systems through CI.
 
 ## Development
 

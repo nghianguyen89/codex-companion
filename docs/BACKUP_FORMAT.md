@@ -69,8 +69,10 @@ The strict, unknown-field-rejecting manifest has `formatVersion: 1`,
 `platform: "windows"`, `sensitive: true`, and one artifact. That artifact is
 fixed to `appId: "beyond-compare"`, adapter version `1`, kind
 `"settings-package"`, the namespaced path above, `files: 1`, its byte count,
-lowercase SHA-256, `restoreMode: "manual"`, and a true
-`secretExportDisabledAcknowledged`. The `sourceAppVersion` field is required
+lowercase SHA-256, `restoreMode: "manual"`, and a boolean
+`secretExportDisabledAcknowledged`. `true` records that the user said native
+password/token export was disabled; `false` records that the user said the
+opaque native export includes saved passwords or FTP/SSH credentials. The `sourceAppVersion` field is required
 and must be explicitly `null`: the `.bcpkg` payload is opaque, so Companion
 must not guess or parse a version.
 
@@ -81,11 +83,10 @@ absolute/drive/ADS/backslash names, Windows reserved names, trailing dots or
 spaces, links, and unsupported/future variants. Limits are two ZIP entries,
 1 MiB manifest, 512 MiB artifact, and 512 MiB aggregate artifact bytes.
 
-Creation requires a user acknowledgement that Beyond Compare's password and
-authentication-token export option was disabled. This cannot be proved from the
-opaque package; the artifact and bundle remain sensitive. Use only trusted
-encrypted transport. There is no cloud upload, credential/license migration or
-automatic native import.
+Creation records the user's explicit credential choice. This cannot be proved
+from the opaque package; the artifact and bundle remain sensitive. The bundle
+is not password-protected, so use only trusted encrypted transport. There is
+no cloud upload, license migration or automatic native import.
 
 Recovery revalidates the inspection token, full bundle hash and ZIP content on
 the same opened archive handle, then copies at most the declared artifact bytes
@@ -121,3 +122,27 @@ SourceTree configuration location automatically: recovery is a create-new
 Companion staging write with rollback on failure. SourceTree placement is
 manual, even when the destination is absent; an existing destination is a
 manual-review conflict.
+
+## Personal bundle v1 — XAMPP files
+
+The XAMPP bundle is a separate strict `personal-bundle-v1` variant. Its exact
+ZIP inventory is `personal-manifest.json` plus manifest-listed regular files
+only under `apps/xampp/htdocs/<selected-project>/<relative-file>` and these
+configuration paths: `apps/xampp/config/apache/conf/httpd.conf`,
+`apps/xampp/config/apache/conf/extra/httpd-vhosts.conf`,
+`apps/xampp/config/php/php.ini`, and `apps/xampp/config/mysql/bin/my.ini`.
+
+The strict one-artifact manifest records XAMPP version/architecture, manual
+restore mode, aggregate count/bytes, and `{ archivePath, bytes, sha256,
+sourceKind }` for every file. Unknown fields, alternate paths/configuration,
+duplicate/case-colliding ZIP names, links, traversal, ADS, reserved names, and
+count/size/hash mismatches are rejected. Limits are 20,000 files, 64 MiB per
+project file, 1 MiB per reviewed configuration file, 512 MiB aggregate, and
+4 MiB manifest.
+
+Only direct user-selected `htdocs` projects are eligible. Binaries, MariaDB
+data, credentials, keys, logs, caches, repository metadata, and reparse points
+are not archived. Recovery revalidates token, full ZIP hash/inventory,
+compatible XAMPP version/architecture and destination state, then extracts
+create-new only to Companion staging with rollback. There is no overwrite,
+automatic placement, XAMPP import, or MariaDB import.

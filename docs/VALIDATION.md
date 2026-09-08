@@ -69,3 +69,63 @@ Windows x64 NSIS bundle passed at
 `src-tauri/target/release/bundle/nsis/Codex Companion_0.2.0_x64-setup.exe`
 (SHA-256 `1C2A1D96340AEDFA2262197544B0F197EC33D8B77F91487C755483FD16ACD445`).
 MSI was not run for this delta.
+
+## Phase 3 XAMPP files delta — 2026-09-07
+
+Completed checks: `pnpm lint`, `pnpm check`, `pnpm test` (16 tests), `pnpm build`,
+`cargo check --manifest-path src-tauri/Cargo.toml`,
+`cargo test --manifest-path src-tauri/Cargo.toml --lib` (57 tests), and
+`git diff --check` all passed. `cargo check` emitted a non-fatal Windows
+incremental-cache access warning; compilation completed successfully.
+
+Rust regression coverage includes all prior session-v1, delete-v1,
+environment-v2, Beyond Compare and SourceTree cases plus XAMPP selected-project
+boundary, reviewed-config credential rejection from a hash-valid crafted ZIP,
+credential/key filename exclusion, process recognition, source-change, strict
+bundle inventory/hash and staging rollback. The frontend fixture confirms the stopped-process requirement,
+exclusions, sensitive transport warning, and manual-only staging workflow.
+
+After normal checks passed, `./build-publish.ps1` produced the Windows x64 NSIS
+installer and portable executable. The fresh hashes are:
+
+```text
+release/portable/codex-companion.exe
+03CB334BAEBA9AA2D3061368763B00AF3BF44BCD6FF67E3BE5721A495C17D5F2
+
+src-tauri/target/release/bundle/nsis/Codex Companion_0.2.0_x64-setup.exe
+B6521680F8C72DED9A474C2C13854FCB1EA26F84A75A98428EE828D4A05486E4
+```
+
+MSI was not run.
+
+## Dev Companion branding and Beyond Compare credential-selection delta — 2026-09-08
+
+Completed checks: `pnpm lint`, `pnpm check`, `pnpm test` (16 tests), `pnpm build`,
+`cargo check --manifest-path src-tauri/Cargo.toml`,
+`cargo test --manifest-path src-tauri/Cargo.toml --lib` (57 tests), and
+`git diff --check` all passed. `cargo check` emitted a non-fatal Windows
+incremental-cache access warning; compilation completed successfully.
+
+The Beyond Compare regression verifies that an explicit credential-included
+choice is recorded and remains inspectable by the strict personal-bundle-v1
+reader. Existing SourceTree, XAMPP, session-v1, delete-v1 and environment-v2
+coverage remains in the same test run. After the normal checks passed,
+`./build-publish.ps1` produced:
+
+```text
+release/portable/dev-companion.exe
+8BCD6559EFFFCC4D9AF579A130DB1C66A6A896C2745AA8464CA1454BE4C89282
+
+src-tauri/target/release/bundle/nsis/Dev Companion_0.2.0_x64-setup.exe
+D3C4AB4B592F960854BD896FA45A087B36DBA5C91FA117C0816586F23E19F55C
+```
+
+MSI was not run. No target-machine Beyond Compare import or passphrase-encrypted
+bundle test has been performed; native import remains manual and the bundle is
+not password-protected.
+
+Independent Sol review found no blockers: existing Codex archive readers and
+the legacy application-data path remain unchanged; personal-bundle-v1 accepts
+both the established `true` and newly recorded `false` credential flag; the UI
+keeps opaque-data, unencrypted-transport and manual-import warnings; and no
+generic provider framework was introduced.

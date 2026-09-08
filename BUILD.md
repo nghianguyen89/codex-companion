@@ -4,8 +4,8 @@ Install Node.js, pnpm, Rust stable, Visual Studio C++ Build Tools and WebView2 (
 Run `./build-publish.ps1` in PowerShell. Missing frontend packages are installed with pnpm; SDK installation is explicit because it changes the machine.
 
 Outputs:
-- `release/portable/codex-companion.exe`, adjacent `portable-mode` and user guide.
-- `src-tauri/target/release/bundle/nsis/Codex Companion_0.2.0_x64-setup.exe`.
+- `release/portable/dev-companion.exe`, adjacent `portable-mode` and user guide.
+- `src-tauri/target/release/bundle/nsis/Dev Companion_0.2.0_x64-setup.exe`.
 
 The icon is embedded through `src-tauri/tauri.conf.json` and `icons/icon.ico`.
 Portable configuration is always read/written next to the executable when the marker exists. Keep the folder writable.

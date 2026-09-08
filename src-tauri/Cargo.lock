@@ -331,25 +331,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "codex-companion"
-version = "0.2.0"
-dependencies = [
- "dirs",
- "quick-xml",
- "serde",
- "serde_json",
- "sha2",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "thiserror 2.0.20",
- "time",
- "tracing",
- "tracing-subscriber",
- "zip",
-]
-
-[[package]]
 name = "combine"
 version = "4.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -606,6 +587,25 @@ dependencies = [
  "quote",
  "rustc_version",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "dev-companion"
+version = "0.2.0"
+dependencies = [
+ "dirs",
+ "quick-xml",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "thiserror 2.0.20",
+ "time",
+ "tracing",
+ "tracing-subscriber",
+ "zip",
 ]
 
 [[package]]

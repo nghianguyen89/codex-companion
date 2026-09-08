@@ -1,8 +1,8 @@
 [package]
-name = "codex-companion"
+name = "dev-companion"
 version = "0.2.0"
-description = "A safe, local companion utility for Codex"
-authors = ["Codex Companion contributors"]
+description = "A safe, local all-in-one developer companion"
+authors = ["Dev Companion contributors"]
 edition = "2021"
 rust-version = "1.77"
 

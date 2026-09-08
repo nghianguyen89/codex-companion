@@ -1,4 +1,4 @@
-# Codex Companion 0.2.0 — sử dụng trên Windows
+# Dev Companion 0.2.0 — sử dụng trên Windows
 
 **Chưa hoàn tất migration chat sử dụng được trong Codex Desktop.** Bản này có backup môi trường và phục hồi file không ghi đè. Chưa gộp database/index, chưa kiểm chứng chat xuất hiện và mở lại trên máy đích. Không dùng kết quả “đã phục hồi file” làm bằng chứng migration thành công.
 
@@ -36,4 +36,4 @@ File đổi nội dung/mtime, liên kết/junction, không rõ schema hoặc đa
 
 ## Portable
 
-Chạy `release/portable/codex-companion.exe`; giữ `portable-mode` cạnh exe. Settings luôn đọc/ghi tại `config/settings.json` cạnh exe khi marker tồn tại. Cờ portable trong Settings điều khiển vị trí backup/quarantine/history theo cấu hình hiện có. Không cần chạy quyền Administrator.
+Chạy `release/portable/dev-companion.exe`; giữ `portable-mode` cạnh exe. Settings luôn đọc/ghi tại `config/settings.json` cạnh exe khi marker tồn tại. Cờ portable trong Settings điều khiển vị trí backup/quarantine/history theo cấu hình hiện có. Không cần chạy quyền Administrator.

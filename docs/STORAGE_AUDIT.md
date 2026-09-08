@@ -42,10 +42,10 @@ Current limits: 1 GiB per environment file, 4 MiB environment manifest, 32 in-me
 
 The Phase 1 workflow accepts only a user-created regular `.bcpkg` on Windows.
 Companion records only its byte count and SHA-256, and does not inspect package
-contents or source paths. The native package may still contain sensitive data;
-the required acknowledgement that password/token export was disabled is not a
-verification. The bundle and recovered package therefore require trusted
-encrypted transport and remain outside cloud upload/sync.
+contents or source paths. The native package may contain saved passwords and
+FTP/SSH credentials; the explicit user selection is not a verification. The
+bundle is not password-protected, so it and the recovered package require
+trusted encrypted transport and remain outside cloud upload/sync.
 
 Recovery writes the opaque package once to a new Companion-owned staging path;
 the path is shown only to complete Beyond Compare's manual import. It never
@@ -65,3 +65,21 @@ The resulting personal bundle remains sensitive despite these exclusions. Use
 trusted encrypted transport; cloud sync is not available. Recovery extracts only
 to Companion-owned staging, rechecks the intended SourceTree location for a
 manual conflict preview, and never applies configuration to SourceTree.
+
+## XAMPP files boundary
+
+The Phase 3 file workflow detects a local Windows XAMPP root (`XAMPP_HOME` or
+`C:\xampp`) and reads release notes only to determine version/architecture. It
+does not archive XAMPP binaries, `mysql/data`, logical database dumps,
+credentials, keys, logs, caches, repository metadata, or a path outside an
+explicitly selected direct `htdocs` project. Four fixed reviewed UTF-8
+configuration files are the only configuration candidates; credential/key
+indicators reject a configuration file rather than redact or guess.
+
+Preview, creation, and recovery require Apache, MariaDB and XAMPP-related
+processes to be stopped; no process is killed. A reparse point or unsafe path
+aborts the operation. Staging recovery is create-new with rollback and never
+writes into the XAMPP installation. The file-name exclusions reduce exposure
+but cannot prove arbitrary selected project source contains no secrets, so the
+project and bundle remain sensitive. XAMPP placement and database migration are
+manual-only.

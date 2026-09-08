@@ -31,6 +31,25 @@ Release/version:
 - SourceTree repositories, tabs, custom actions, `user.config`, hosted
   accounts, credentials, licenses and secrets remain excluded.
 
+### Phase 3 addition
+
+- Windows-only XAMPP personal bundle: explicitly selected direct `htdocs`
+  projects plus four reviewed text configuration files, SHA-256 inventory,
+  strict size/count/namespace validation, stopped-process gate, and
+  create-new rollback-safe staging recovery.
+- XAMPP binaries, MariaDB data/logical dumps, credentials, keys, logs, caches,
+  repository metadata, reparse points, overwrite, automatic placement and
+  MariaDB import remain excluded/manual-only.
+
+### Dev Companion branding and Beyond Compare credential selection
+
+- Visible product, installer and portable-executable branding is Dev Companion;
+  the legacy `codex-companion` application-data directory and established
+  archive formats remain unchanged for compatibility.
+- Beyond Compare accepts an explicit user declaration that its opaque `.bcpkg`
+  includes saved passwords or FTP/SSH credentials, records that declaration,
+  and remains manual-import/staging-only. The ZIP is not password-protected.
+
 ## In Progress
 
 - TBD
@@ -39,10 +58,10 @@ Release/version:
 
 - TBD
 
-- A `.bcpkg` cannot prove that its export omitted secrets; user acknowledgement
-  is required and every personal bundle remains sensitive. No authenticated
-  encryption, cloud transport, license migration or automatic Beyond Compare
-  import is implemented.
+- A `.bcpkg` cannot prove whether its native export includes saved passwords or
+  FTP/SSH credentials; the user's recorded choice is not verification and every
+  personal bundle remains sensitive. No authenticated encryption, cloud
+  transport, license migration or automatic Beyond Compare import is implemented.
 
 ## Technical Debt Worth Remembering
 
@@ -53,8 +72,8 @@ Release/version:
 ```text
 Lint: pnpm lint (pass)
 Type-check: pnpm check (pass)
-Tests: pnpm test (15 pass); cargo test --lib (52 pass)
-Build: pnpm build (pass); Windows x64 NSIS bundle (pass); MSI not run
+Tests: pnpm test (16 pass); cargo test --lib (57 pass)
+Build: pnpm build (pass); Windows x64 NSIS bundle and portable executable (pass); MSI not run
 ```
 
 Never mark validation as passing unless it was actually run.

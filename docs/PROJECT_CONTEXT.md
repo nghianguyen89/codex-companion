@@ -12,7 +12,7 @@ New modules: `environment.rs` (offline Windows snapshot/preview/token/create-onl
 
 ## Purpose and philosophy
 
-Codex Companion is a lightweight, local, cross-platform control panel for an existing OpenAI Codex installation. It complements Codex Desktop rather than replacing it: Companion manages local metadata, diagnostics, backup, and organization while Codex Desktop owns chat, authentication, and cloud features. Safety, correctness, low idle cost, and portability take priority over convenience.
+Dev Companion is a lightweight, local, Windows-first utility for selected developer tools. It complements rather than replaces Codex Desktop, Beyond Compare, SourceTree, or XAMPP: Dev Companion owns only its explicit local diagnostics, backup, and staging workflows. Safety, correctness, low idle cost, and portability take priority over convenience.
 
 ## Stack and platforms
 

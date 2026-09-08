@@ -9,9 +9,9 @@ use tauri_plugin_dialog::DialogExt;
 #[tauri::command]
 pub fn get_beyond_compare_readiness() -> crate::beyond_compare::Readiness { crate::beyond_compare::readiness() }
 #[tauri::command]
-pub fn preview_beyond_compare(app: tauri::AppHandle, secret_export_disabled: bool) -> Result<Option<crate::personal_bundle::BundlePreview>, String> {
+pub fn preview_beyond_compare(app: tauri::AppHandle, credentials_included: bool) -> Result<Option<crate::personal_bundle::BundlePreview>, String> {
     let Some(file) = app.dialog().file().set_title("Choose a Beyond Compare settings package").add_filter("Beyond Compare package", &["bcpkg"]).blocking_pick_file() else { return Ok(None); };
-    crate::personal_bundle::preview_create(file.into_path().map_err(|_| "The selected package does not have a readable local path.")?, secret_export_disabled).map(Some)
+    crate::personal_bundle::preview_create(file.into_path().map_err(|_| "The selected package does not have a readable local path.")?, credentials_included).map(Some)
 }
 #[tauri::command]
 pub fn create_beyond_compare_bundle(token: String) -> Result<crate::personal_bundle::BundleCreated, String> { crate::personal_bundle::create(&token) }
@@ -40,6 +40,26 @@ pub fn inspect_sourcetree_bundle(app: tauri::AppHandle) -> Result<Option<crate::
 pub fn preview_sourcetree_recovery(token: String) -> Result<crate::sourcetree::RecoveryPreview, String> { crate::sourcetree::preview_recovery(&token) }
 #[tauri::command]
 pub fn recover_sourcetree(token: String, confirmation: String) -> Result<crate::sourcetree::RecoveryResult, String> { crate::sourcetree::recover(&token, &confirmation) }
+
+#[tauri::command]
+pub fn get_xampp_readiness() -> crate::xampp::Readiness { crate::xampp::readiness() }
+#[tauri::command]
+pub fn preview_xampp(app: tauri::AppHandle) -> Result<Option<crate::xampp::Preview>, String> {
+    let Some(folders) = app.dialog().file().set_title("Select direct XAMPP htdocs project folders").blocking_pick_folders() else { return Ok(None); };
+    let paths = folders.into_iter().map(|folder| folder.into_path().map_err(|_| "The selected XAMPP project does not have a readable local path.")).collect::<Result<Vec<_>, _>>()?;
+    crate::xampp::preview(paths).map(Some)
+}
+#[tauri::command]
+pub fn create_xampp_bundle(token: String) -> Result<crate::xampp::Created, String> { crate::xampp::create(&token) }
+#[tauri::command]
+pub fn inspect_xampp_bundle(app: tauri::AppHandle) -> Result<Option<crate::xampp::Inspection>, String> {
+    let Some(file) = app.dialog().file().set_title("Choose an XAMPP personal bundle").add_filter("Personal bundle", &["zip"]).blocking_pick_file() else { return Ok(None); };
+    crate::xampp::inspect(file.into_path().map_err(|_| "The selected bundle does not have a readable local path.")?).map(Some)
+}
+#[tauri::command]
+pub fn preview_xampp_recovery(token: String) -> Result<crate::xampp::RecoveryPreview, String> { crate::xampp::preview_recovery(&token) }
+#[tauri::command]
+pub fn recover_xampp(token: String, confirmation: String) -> Result<crate::xampp::RecoveryResult, String> { crate::xampp::recover(&token, &confirmation) }
 
 #[tauri::command]
 pub fn preview_environment(groups: Vec<String>) -> Result<crate::environment::Preview, String> { crate::environment::preview(groups) }
