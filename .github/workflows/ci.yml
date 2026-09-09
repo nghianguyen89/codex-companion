@@ -24,7 +24,7 @@ jobs:
       - run: pnpm build
 
   rust:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -32,16 +32,8 @@ jobs:
       - run: cargo check --manifest-path src-tauri/Cargo.toml
 
   bundle:
-    name: bundle (${{ matrix.platform }})
     needs: [frontend, rust]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: windows-latest
-          - platform: macos-latest
-          - platform: ubuntu-22.04
-    runs-on: ${{ matrix.platform }}
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -53,4 +45,4 @@ jobs:
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
       - run: pnpm install --frozen-lockfile
-      - run: pnpm tauri build
+      - run: pnpm tauri build --bundles nsis
